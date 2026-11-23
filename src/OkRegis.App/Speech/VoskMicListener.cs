@@ -19,6 +19,7 @@ public class VoskMicListener : IMicListener
     private WaveIn? _waveIn;
     private string? _grammar;
     private bool _muted;
+    private readonly Func<double> _gainDb;                 // boost du micro (dB), pour les micros faibles
     private readonly Func<bool> _saveCpu;                  // « n'analyser que quand je parle »
     private readonly VoiceGate _gate = new();
     private readonly Queue<byte[]> _preroll = new();       // les dernières tranches de silence, rejouées au début d'une phrase
@@ -28,9 +29,10 @@ public class VoskMicListener : IMicListener
 
     public bool IsRunning { get { lock (_lock) return _waveIn != null; } }
 
-    public VoskMicListener(ModelHost host, Func<bool>? saveCpu = null)
+    public VoskMicListener(ModelHost host, Func<bool>? saveCpu = null, Func<double>? gainDb = null)
     {
         _host = host;
+        _gainDb = gainDb ?? (() => 0);
         _saveCpu = saveCpu ?? (() => false);
         Vosk.Vosk.SetLogLevel(-1); // pas de messages de debug de Vosk
     }
@@ -120,6 +122,7 @@ public class VoskMicListener : IMicListener
         {
             if (_recognizer == null) return;
             if (_muted) { _recognizer.Reset(); return; }
+            AudioGain.Apply(e.Buffer, e.BytesRecorded, _gainDb()); // boost avant tout : la détection de voix et Vosk entendent le son amplifié
 
             if (!_saveCpu())
             {
@@ -130,7 +133,7 @@ public class VoskMicListener : IMicListener
             {
                 // Mode économe : Vosk ne travaille que pendant la parole (+ une courte traîne).
                 var frameMs = Math.Max(1, e.BytesRecorded / 32); // 16 kHz × 2 octets = 32 octets par ms
-                var decision = _gate.Next(Rms(e.Buffer, e.BytesRecorded), frameMs);
+                var decision = _gate.Next(AudioGain.Rms(e.Buffer, e.BytesRecorded), frameMs);
                 if (decision.Start)
                 {
                     foreach (var old in _preroll) // le début de la phrase, capté avant la détection
@@ -156,20 +159,6 @@ public class VoskMicListener : IMicListener
         if (heard != null) PhraseHeard?.Invoke(heard); // hors du verrou
     }
 
-    // Volume efficace (0-32768) d'une tranche d'audio 16 bits.
-    private static double Rms(byte[] buffer, int count)
-    {
-        var samples = count / 2;
-        if (samples == 0) return 0;
-        double sum = 0;
-        for (var i = 0; i < samples; i++)
-        {
-            double s = BitConverter.ToInt16(buffer, i * 2);
-            sum += s * s;
-        }
-        return Math.Sqrt(sum / samples);
-    }
-
     // Vosk répond {"result":[{"conf":0.9,"word":"mets"},...],"text":"mets"}
     private static Heard? ParseResult(string json)
     {
@@ -191,7 +180,7 @@ public class VoskMicListener : IMicListener
         return new Heard(string.Join(' ', words), hasUnknown ? 0.0 : confs.Average());
     }
 
-    private static int FindDevice(string? name)
+    public static int FindDevice(string? name)
     {
         if (string.IsNullOrEmpty(name)) return -1; // -1 = micro par défaut de Windows
         for (var i = 0; i < WaveIn.DeviceCount; i++)

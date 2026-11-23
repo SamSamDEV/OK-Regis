@@ -36,6 +36,9 @@ public class SettingsForm : Form
     private readonly NumericUpDown _port = new() { Minimum = 1, Maximum = 65535 };
     private readonly TextBox _password = new() { UseSystemPasswordChar = true };
     private readonly Label _testResult = new() { AutoSize = true };
+    private readonly NumericUpDown _gain = new() { Minimum = 0, Maximum = 30, DecimalPlaces = 0 };
+    private readonly MicMeter _meter = new() { Dock = DockStyle.Fill };
+    private volatile float _gainLive;   // lu par le fil audio du témoin de niveau
     private readonly NumericUpDown _volume = new() { Minimum = 1, Maximum = 20, DecimalPlaces = 1 };
     private readonly NumericUpDown _confidence = new() { Minimum = 0.1m, Maximum = 0.95m, DecimalPlaces = 2, Increment = 0.05m };
     private readonly CheckBox _saveCpu = new() { Text = Loc.T("Économiser le processeur (n'analyse le micro que quand je parle)"), AutoSize = true };
@@ -47,7 +50,7 @@ public class SettingsForm : Form
         _s = settings; _secrets = secrets; _vocab = vocab;
         Text = firstRun ? Loc.T("OK Régis — première configuration") : Loc.T("OK Régis — réglages");
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(620, 680);
+        ClientSize = new Size(620, 750);
         FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
 
         var tabs = new NavTabs();
@@ -64,7 +67,15 @@ public class SettingsForm : Form
 
         Load();
         Theme.Apply(this);
+
+        // Témoin de niveau : le micro n'est ouvert que pendant que cette fenêtre est affichée.
+        _gain.ValueChanged += (_, _) => _gainLive = (float)_gain.Value;
+        _mic.SelectedIndexChanged += (_, _) => StartMeter();
+        Shown += (_, _) => StartMeter();
+        FormClosed += (_, _) => _meter.Stop();
     }
+
+    private void StartMeter() => _meter.Start(_mic.SelectedIndex > 0 ? (string)_mic.SelectedItem! : null, () => _gainLive);
 
     private Control BuildGeneralTab(bool firstRun)
     {
@@ -94,6 +105,8 @@ public class SettingsForm : Form
         }
         AddRow(table, Loc.T("Apparence"), _theme);
         AddRow(table, Loc.T("Micro"), _mic);
+        AddRow(table, Loc.T("Boost du micro (dB)"), _gain);
+        table.Controls.Add(_meter); table.SetColumnSpan(_meter, 2);
         AddRow(table, Loc.T("Réponses de Régis"), _mode);
         AddRow(table, Loc.T("Sortie audio des réponses"), _output);
         AddRow(table, Loc.T("Adresse d'OBS"), _host);
@@ -148,6 +161,7 @@ public class SettingsForm : Form
         _language.SelectedIndex = (int)_s.Language;
         _host.Text = _s.ObsHost; _port.Value = _s.ObsPort;
         _saveCpu.Checked = _s.SaveCpuWhenSilent;
+        _gain.Value = (decimal)Math.Clamp(_s.MicGainDb, 0, 30); _gainLive = (float)_gain.Value;
         _volume.Value = (decimal)_s.VolumeStepDb; _confidence.Value = (decimal)_s.MinConfidence;
         _autostart.Checked = _s.FirstRunDone ? Autostart.IsEnabled() : _s.StartWithWindows; // au premier lancement : la valeur par défaut (cochée)
         foreach (var kind in Enum.GetValues<CommandKind>())
@@ -199,6 +213,7 @@ public class SettingsForm : Form
         _s.ObsPort = (int)_port.Value;
         if (_password.Text.Length > 0) _s.ObsPasswordEncrypted = _secrets.Protect(_password.Text);
         _s.SaveCpuWhenSilent = _saveCpu.Checked;
+        _s.MicGainDb = (double)_gain.Value;
         _s.VolumeStepDb = (double)_volume.Value; _s.MinConfidence = (double)_confidence.Value;
         _s.StartWithWindows = _autostart.Checked;
         for (var i = 0; i < _commands.Items.Count; i++) _s.EnabledCommands[(CommandKind)i] = _commands.GetItemChecked(i);

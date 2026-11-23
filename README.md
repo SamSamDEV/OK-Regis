@@ -57,7 +57,7 @@ Open it from the tray icon. Header: state, last phrase heard, **Pause**, **Refre
 
 ## Settings
 
-Language · assistant name · appearance · microphone · reply output device (so you decide whether the voice reaches the stream) · OBS address/port/password · volume step · confidence threshold · which commands are enabled · *save CPU* mode · start with Windows.
+Language · assistant name · appearance · microphone with a **boost and a live level meter** (for quiet microphones — the boost only affects what Régis hears, never OBS) · reply output device (so you decide whether the voice reaches the stream) · OBS address/port/password · volume step · confidence threshold · which commands are enabled · *save CPU* mode · start with Windows.
 
 Changing the **language** restarts the app (a different voice model is loaded). Settings are stored in `%AppData%\OK-Regis\settings.json`; the OBS password is encrypted with Windows DPAPI.
 
@@ -76,7 +76,7 @@ The voice model itself reserves ~390 MB of *committed* memory; Windows only keep
 
 ## Troubleshooting
 
-- **Régis does not react / reacts rarely** — check the **History** tab. *"Not sure enough"* → raise your mic level or lower the *confidence threshold*. Nothing at all → untick **Save CPU** in the settings (very quiet microphones).
+- **Régis does not react / reacts rarely** — open the settings and speak: the **microphone level meter** should reach the green zone. If it says *too quiet*, raise the **microphone boost** (this changes only what Régis hears, not your OBS audio). Also check the **History** tab: *"Not sure enough"* → lower the *confidence threshold*. Still nothing → untick **Save CPU**.
 - **⚠ "Régis can't hear this name"** — the voice model does not know that word (e.g. `Texte (GDI+) 2`). Add a nickname with a common word.
 - **Cannot connect to OBS** — OBS must be open with the WebSocket server enabled; check port and password.
 - **The assistant name shows a warning** — it is unknown to the voice model or too close to a command word. Try another spelling or name.

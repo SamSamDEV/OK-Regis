@@ -30,6 +30,8 @@ public class AppSettings
     public double MinConfidence { get; set; } = 0.6;
     /// <summary>N'analyser le micro que quand quelqu'un parle (beaucoup moins de processeur).</summary>
     public bool SaveCpuWhenSilent { get; set; } = true;
+    /// <summary>Boost du micro en dB, appliqué seulement à la reconnaissance vocale (0 = aucun). Pour les micros faibles.</summary>
+    public double MicGainDb { get; set; } = 0;
     public bool StartWithWindows { get; set; } = true;
     public bool FirstRunDone { get; set; } = false;
     public ResponseMode VoiceMode { get; set; } = ResponseMode.WindowsVoice;

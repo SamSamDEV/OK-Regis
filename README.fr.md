@@ -57,7 +57,7 @@ Ouvre-la depuis l'icône de la zone de notification. En-tête : état, dernière
 
 ## Réglages
 
-Langue · nom de l'assistant · apparence · micro · sortie audio des réponses (pour décider si la voix passe en live) · adresse/port/mot de passe d'OBS · pas de volume · seuil de confiance · commandes activées · mode *économiser le processeur* · démarrage avec Windows.
+Langue · nom de l'assistant · apparence · micro avec un **boost et un indicateur de niveau en direct** (pour les micros faibles — le boost ne change que ce que Régis entend, jamais OBS) · sortie audio des réponses (pour décider si la voix passe en live) · adresse/port/mot de passe d'OBS · pas de volume · seuil de confiance · commandes activées · mode *économiser le processeur* · démarrage avec Windows.
 
 Changer de **langue** redémarre l'appli (un autre modèle vocal est chargé). Les réglages sont dans `%AppData%\OK-Regis\settings.json` ; le mot de passe d'OBS est chiffré avec DPAPI (Windows).
 
@@ -76,7 +76,7 @@ Le modèle vocal réserve environ 390 Mo de mémoire *engagée* ; Windows ne gar
 
 ## Dépannage
 
-- **Régis ne réagit pas / rarement** — regarde l'onglet **Historique**. *« Pas assez sûr »* → monte le niveau du micro ou baisse le *seuil de confiance*. Rien du tout → décoche **Économiser le processeur** dans les réglages (micros très faibles).
+- **Régis ne réagit pas / rarement** — ouvre les réglages et parle : l'**indicateur de niveau du micro** doit atteindre la zone verte. S'il indique *trop faible*, augmente le **boost du micro** (cela ne change que ce que Régis entend, pas l'audio de ton OBS). Regarde aussi l'onglet **Historique** : *« Pas assez sûr »* → baisse le *seuil de confiance*. Toujours rien → décoche **Économiser le processeur**.
 - **⚠ « Régis ne peut pas entendre ce nom »** — le modèle vocal ne connaît pas ce mot (ex. `Texte (GDI+) 2`). Ajoute un surnom avec un mot courant.
 - **Connexion à OBS impossible** — OBS doit être ouvert avec le serveur WebSocket activé ; vérifie le port et le mot de passe.
 - **Le nom de l'assistant affiche un avertissement** — il est inconnu du modèle vocal ou trop proche d'un mot de commande. Essaie une autre orthographe ou un autre nom.

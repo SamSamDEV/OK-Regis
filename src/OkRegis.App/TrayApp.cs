@@ -37,7 +37,7 @@ public class TrayApp : ApplicationContext
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         _ui = SynchronizationContext.Current!;
         _settings = settings; _store = store; _secrets = secrets; _vocab = vocab;
-        _mic = new VoskMicListener(modelHost, () => _settings.SaveCpuWhenSilent);
+        _mic = new VoskMicListener(modelHost, () => _settings.SaveCpuWhenSilent, () => _settings.MicGainDb);
         _responder = new WindowsResponder(settings);
         _orchestrator = new Orchestrator(settings, _obs, _mic, _responder, _watcher, vocab, secrets);
 
