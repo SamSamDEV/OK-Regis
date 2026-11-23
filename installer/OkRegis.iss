@@ -4,7 +4,7 @@
 ; Installe pour l'utilisateur courant : aucun droit administrateur nécessaire.
 
 #ifndef AppVersion
-  #define AppVersion "1.0.2"
+  #define AppVersion "1.0.3"
 #endif
 #define AppName "OK Régis"
 #define AppExe "OkRegis.App.exe"

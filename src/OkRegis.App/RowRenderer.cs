@@ -106,8 +106,8 @@ public static class RowRenderer
         var l = d.GetLayout(bounds.Width, bounds.Height);
         var o = bounds.Location;
         Rectangle R(Rectangle r) => new(r.X + o.X, r.Y + o.Y, r.Width, r.Height);
-        const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.Left;
-        const TextFormatFlags center = TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding;
+        const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.PreserveGraphicsClipping | TextFormatFlags.EndEllipsis | TextFormatFlags.Left;
+        const TextFormatFlags center = TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.PreserveGraphicsClipping;
         var scene = d.Kind == RowKind.Scene;
 
         if (lifted) { using var b = new SolidBrush(Theme.SurfaceAlt); g.FillRectangle(b, bounds); }
@@ -137,7 +137,7 @@ public static class RowRenderer
             var (rect, nick) = l.Chips[i];
             var r = R(rect);
             using (var path = Theme.RoundedRect(r, 13)) using (var fill = new SolidBrush(Theme.ChipBack)) g.FillPath(fill, path);
-            TextRenderer.DrawText(g, nick, Theme.BaseFont, new Rectangle(r.X + 10, r.Y, r.Width - CrossWidth - 10, r.Height), Theme.Accent, TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            TextRenderer.DrawText(g, nick, Theme.BaseFont, new Rectangle(r.X + 10, r.Y, r.Width - CrossWidth - 10, r.Height), Theme.Accent, TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.PreserveGraphicsClipping);
             var crossColor = hover.Kind == HitKind.ChipCross && hover.Chip == i ? Theme.Danger : Theme.Muted;
             TextRenderer.DrawText(g, "✕", Theme.SmallFont, new Rectangle(r.Right - CrossWidth, r.Y, CrossWidth - 4, r.Height), crossColor, center);
         }
@@ -151,7 +151,7 @@ public static class RowRenderer
     {
         using (var path = Theme.RoundedRect(rect, 8))
         using (var fill = new SolidBrush(hover ? ControlPaint.Light(back, 0.1f) : back)) g.FillPath(fill, path);
-        TextRenderer.DrawText(g, text, Theme.BaseFont, rect, fore, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
+        TextRenderer.DrawText(g, text, Theme.BaseFont, rect, fore, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.PreserveGraphicsClipping);
     }
 
     // ---- souris ----

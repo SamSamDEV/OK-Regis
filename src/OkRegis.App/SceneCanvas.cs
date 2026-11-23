@@ -20,7 +20,7 @@ public sealed class GroupItem
     public List<RowItem> Rows { get; } = new();
     public bool Expanded { get; set; }
     public float ExpandT;                 // 0 = replié, 1 = déplié (animé)
-    public float DisplayY, TargetY;
+    public float DisplayY, TargetY, PrevTargetY;
     public bool Lifted;
 }
 
@@ -41,6 +41,7 @@ public class SceneCanvas : SmoothCanvas
     // clic
     private RowData? _downRow; private Hover _down = Hover.None;
     // glisser
+    private bool _skipFollow;           // vrai juste après un changement d'ordre : les cartes glissent au lieu de suivre
     private GroupItem? _dragGroup; private RowItem? _dragRow; private GroupItem? _dragRowGroup; private float _grab;
 
     public event Action<RowData, string>? ChipRemoved;
@@ -59,7 +60,7 @@ public class SceneCanvas : SmoothCanvas
         _groups.Clear(); _groups.AddRange(groups);
         foreach (var g in _groups) g.ExpandT = g.Audio || g.Expanded ? 1 : 0;
         Layout();
-        foreach (var g in _groups) { g.DisplayY = g.TargetY; foreach (var r in g.Rows) r.DisplayY = r.TargetY; }
+        foreach (var g in _groups) { g.DisplayY = g.PrevTargetY = g.TargetY; foreach (var r in g.Rows) r.DisplayY = r.TargetY; }
         _hoverRow = null; _hover = Hover.None;
         SyncScroll();
         Invalidate();
@@ -114,6 +115,15 @@ public class SceneCanvas : SmoothCanvas
         }
 
         Layout();
+
+        // Quand une scène se déplie ou se replie, les cartes en dessous suivent EXACTEMENT (pas de retard) ;
+        // seul un changement d'ordre (glisser) les fait glisser en douceur.
+        foreach (var g in _groups)
+        {
+            if (!_skipFollow && !g.Lifted) g.DisplayY += g.TargetY - g.PrevTargetY;
+            g.PrevTargetY = g.TargetY;
+        }
+        _skipFollow = false;
 
         foreach (var g in _groups)
         {
@@ -309,7 +319,7 @@ public class SceneCanvas : SmoothCanvas
             var others = _groups.Where(g => g != drag && !g.Audio).ToList();
             var newIndex = firstScene + others.Count(g => g.TargetY + GroupHeight(g) / 2 < center);
             var current = _groups.IndexOf(drag);
-            if (newIndex != current) { _groups.RemoveAt(current); _groups.Insert(newIndex, drag); }
+            if (newIndex != current) { _groups.RemoveAt(current); _groups.Insert(newIndex, drag); _skipFollow = true; }
         }
         else if (_dragRow != null && _dragRowGroup != null)
         {

@@ -20,7 +20,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <NoWarn>$(NoWarn);WFO1000</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Product>OK Régis</Product>
     <Description>Voice assistant for OBS</Description>
     <ApplicationIcon>Assets\okregis.ico</ApplicationIcon>
