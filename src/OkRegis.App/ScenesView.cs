@@ -19,6 +19,7 @@ public class ScenesView : Panel
     private readonly Vocabulary _vocab;
     private readonly Action _nicknamesChanged; // enregistre et reconstruit la grammaire (en arrière-plan)
     private readonly Action _save;             // enregistre seulement
+    private readonly bool _audioOnly;          // vrai : cette vue n'affiche que les sons ; faux : que les scènes
 
     private readonly CardList _list = new() { Dock = DockStyle.Fill };
     private readonly NicknameEditor _editor = new();
@@ -29,8 +30,9 @@ public class ScenesView : Panel
     private bool _expandInitialized;
     private string _signature = "";
 
-    public ScenesView(Orchestrator o, AppSettings settings, Vocabulary vocab, Action nicknamesChanged, Action save)
+    public ScenesView(Orchestrator o, AppSettings settings, Vocabulary vocab, Action nicknamesChanged, Action save, bool audioOnly = false)
     {
+        _audioOnly = audioOnly;
         _o = o; _settings = settings; _vocab = vocab; _nicknamesChanged = nicknamesChanged; _save = save;
         Controls.Add(_editor); Controls.Add(_list);   // l'éditeur est au-dessus de la liste
         _list.Scrolled += () => _editor.Close();
@@ -110,7 +112,9 @@ public class ScenesView : Panel
 
         if (snap is null)
         {
-            items.Add(MessageCard("Ouvre OBS : tes scènes et leurs sources apparaîtront ici.\nTu pourras leur donner des surnoms et couper un son en un clic."));
+            items.Add(MessageCard(_audioOnly
+                ? "Ouvre OBS : tes sons apparaîtront ici.\nTu pourras couper le micro ou Discord en un clic."
+                : "Ouvre OBS : tes scènes et leurs sources apparaîtront ici.\nTu pourras leur donner des surnoms."));
         }
         else
         {
@@ -119,8 +123,14 @@ public class ScenesView : Panel
             foreach (var (name, isMuted) in snap.AudioMuted ?? new Dictionary<string, bool>()) _muted[name] = isMuted;
 
             var bad = new HashSet<string>(_o.Grammar?.Unspeakable ?? Array.Empty<string>());
-            if (snap.AudioSources.Count > 0) items.Add(BuildAudioGroup(snap, bad));
-            foreach (var scene in OrderHelper.Apply(snap.Scenes, _settings.SceneOrder)) items.Add(BuildSceneGroup(scene, snap, bad));
+            if (_audioOnly)
+            {
+                items.Add(snap.AudioSources.Count > 0 ? BuildAudioGroup(snap, bad) : MessageCard("Aucune source audio trouvée dans OBS."));
+            }
+            else
+            {
+                foreach (var scene in OrderHelper.Apply(snap.Scenes, _settings.SceneOrder)) items.Add(BuildSceneGroup(scene, snap, bad));
+            }
         }
 
         _list.SetItems(items);

@@ -36,6 +36,7 @@ public class MainForm : Form
     private readonly Button _themeButton = new() { Width = 46, Height = 36, Font = new Font("Segoe UI Symbol", 13f) };
     private readonly ToolTip _tip = new();
     private readonly ScenesView _scenes;
+    private readonly ScenesView _sounds;
     private readonly CardList _responses = new() { Dock = DockStyle.Fill };
     private readonly ListView _history = new() { View = View.Details, Dock = DockStyle.Fill, FullRowSelect = true, HeaderStyle = ColumnHeaderStyle.Nonclickable };
     private readonly Label _resources = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Tag = "muted", Padding = new Padding(16, 0, 0, 0) };
@@ -54,15 +55,17 @@ public class MainForm : Form
         _o = orchestrator; _settings = settings; _vocab = vocab; _meter = meter;
         _nicknamesChanged = nicknamesChanged; _save = save; _preview = preview; _toggleTheme = toggleTheme;
         _scenes = new ScenesView(orchestrator, settings, vocab, nicknamesChanged, save) { Dock = DockStyle.Fill };
+        _sounds = new ScenesView(orchestrator, settings, vocab, nicknamesChanged, save, audioOnly: true) { Dock = DockStyle.Fill };
         Text = "OK Régis"; ClientSize = new Size(840, 620); MinimumSize = new Size(720, 520); StartPosition = FormStartPosition.CenterScreen;
         Icon = TrayIcons.For(RegisState.Listening);
 
         _history.Columns.Add("Heure", 80); _history.Columns.Add("Entendu", 300); _history.Columns.Add("Résultat", 380);
         _themeButton.Click += (_, _) => _toggleTheme();
-        _refreshButton.Click += (_, _) => { _scenes.ForceRebuild(); _o.Refresh(); RefreshView(); };
+        _refreshButton.Click += (_, _) => { _scenes.ForceRebuild(); _sounds.ForceRebuild(); _o.Refresh(); RefreshView(); };
 
         var tabs = new NavTabs();
-        tabs.Add("Scènes et surnoms", _scenes);
+        tabs.Add("Scènes", _scenes);
+        tabs.Add("Sons", _sounds);
         tabs.Add("Réponses de Régis", _responses);
         tabs.Add("Historique", _history);
 
@@ -134,7 +137,7 @@ public class MainForm : Form
         {
             Theme.Apply(this);
             UpdateThemeButton(); ApplyStateColors();
-            _scenes.ForceRebuild();  // les cartes se reconstruisent avec les nouvelles couleurs
+            _scenes.ForceRebuild(); _sounds.ForceRebuild();  // les cartes se reconstruisent avec les nouvelles couleurs
             BuildResponses();
             RefreshView();
         }
@@ -170,6 +173,7 @@ public class MainForm : Form
         }
         _history.EndUpdate();
         _scenes.RebuildIfChanged();
+        _sounds.RebuildIfChanged();
     }
 
     // ---- réponses de Régis : une carte par action ----
