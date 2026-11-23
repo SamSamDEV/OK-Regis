@@ -16,7 +16,7 @@ public class VoskMicListener : IMicListener
     private readonly object _lock = new();
     private Model? _model;
     private VoskRecognizer? _recognizer;
-    private WaveInEvent? _waveIn;
+    private WaveIn? _waveIn;
     private string? _grammar;
     private bool _muted;
 
@@ -50,7 +50,7 @@ public class VoskMicListener : IMicListener
             {
                 _model ??= new Model(_modelPath);
                 _recognizer = NewRecognizer();
-                _waveIn = new WaveInEvent
+                _waveIn = new WaveIn
                 {
                     DeviceNumber = FindDevice(micDeviceName),
                     WaveFormat = new WaveFormat(16000, 16, 1),
@@ -105,7 +105,7 @@ public class VoskMicListener : IMicListener
         _model?.Dispose(); _model = null; // libère les ~40 Mo en veille
     }
 
-    private void OnData(object? sender, WaveInEventArgs e)
+    private void OnData(object? sender, WaveInArgs e)
     {
         Heard? heard = null;
         lock (_lock)
@@ -138,14 +138,14 @@ public class VoskMicListener : IMicListener
     private static int FindDevice(string? name)
     {
         if (string.IsNullOrEmpty(name)) return 0;
-        for (var i = 0; i < WaveInEvent.DeviceCount; i++)
-            if (name.StartsWith(WaveInEvent.GetCapabilities(i).ProductName, StringComparison.OrdinalIgnoreCase)) return i;
+        for (var i = 0; i < WaveIn.DeviceCount; i++)
+            if (name.StartsWith(WaveIn.GetCapabilities(i).ProductName, StringComparison.OrdinalIgnoreCase)) return i;
         return 0;
     }
 
     /// <summary>Noms des micros disponibles (pour les réglages).</summary>
     public static IReadOnlyList<string> ListDevices() =>
-        Enumerable.Range(0, WaveInEvent.DeviceCount).Select(i => WaveInEvent.GetCapabilities(i).ProductName).ToList();
+        Enumerable.Range(0, WaveIn.DeviceCount).Select(i => WaveIn.GetCapabilities(i).ProductName).ToList();
 
     public void Dispose() => Stop();
 }
