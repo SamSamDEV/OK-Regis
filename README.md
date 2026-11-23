@@ -1,2 +1,2 @@
 # OK-Regis
-Vibe coded VOICE COMMAND audiovisual manager for OBS 
+Vibe coded Voice Command OBS Manager
