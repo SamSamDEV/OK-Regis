@@ -174,20 +174,21 @@ public sealed class LanguagePack
         Verbs = new[]
         {
             V("cambia a", CommandKind.SwitchScene, Scenes), V("pasa a", CommandKind.SwitchScene, Scenes), V("ve a", CommandKind.SwitchScene, Scenes), V("escena", CommandKind.SwitchScene, Scenes),
-            V("muestra", CommandKind.ShowSource, Sources), V("ensena", CommandKind.ShowSource, Sources),
-            V("oculta", CommandKind.HideSource, Sources), V("esconde", CommandKind.HideSource, Sources), V("quita", CommandKind.HideSource, Sources),
-            V("silencia", CommandKind.Mute, Audio), V("mutea", CommandKind.Mute, Audio), V("mute", CommandKind.Mute, Audio),
-            V("reactiva", CommandKind.Unmute, Audio), V("desmutea", CommandKind.Unmute, Audio), V("unmute", CommandKind.Unmute, Audio), V("un mute", CommandKind.Unmute, Audio),
+            V("muestra", CommandKind.ShowSource, Sources), V("enciende", CommandKind.ShowSource, Sources), V("activa", CommandKind.ShowSource, Sources),
+            V("oculta", CommandKind.HideSource, Sources), V("esconde", CommandKind.HideSource, Sources), V("quita", CommandKind.HideSource, Sources), V("apaga", CommandKind.HideSource, Sources),
+            V("silencia", CommandKind.Mute, Audio), V("mute", CommandKind.Mute, Audio),
+            V("reactiva", CommandKind.Unmute, Audio), V("unmute", CommandKind.Unmute, Audio), V("un mute", CommandKind.Unmute, Audio),
             V("sube", CommandKind.VolumeUp, Audio), V("aumenta", CommandKind.VolumeUp, Audio),
             V("baja", CommandKind.VolumeDown, Audio), V("reduce", CommandKind.VolumeDown, Audio),
         },
         FixedCommands = new[]
         {
-            ("inicia la grabacion", CommandKind.RecordStart), ("inicia grabacion", CommandKind.RecordStart), ("empieza la grabacion", CommandKind.RecordStart),
-            ("para la grabacion", CommandKind.RecordStop), ("deten la grabacion", CommandKind.RecordStop), ("para grabacion", CommandKind.RecordStop),
-            ("pausa la grabacion", CommandKind.RecordPause), ("pausa grabacion", CommandKind.RecordPause),
-            ("inicia el stream", CommandKind.StreamStart), ("empieza el stream", CommandKind.StreamStart), ("inicia la transmision", CommandKind.StreamStart),
-            ("para el stream", CommandKind.StreamStop), ("deten el stream", CommandKind.StreamStop), ("para la transmision", CommandKind.StreamStop), ("deten la transmision", CommandKind.StreamStop),
+            // Le modèle espagnol léger ne connaît pas « grabación » : on utilise « grabar », « grabadora » et « transmitir ».
+            ("graba", CommandKind.RecordStart), ("empieza a grabar", CommandKind.RecordStart), ("comienza a grabar", CommandKind.RecordStart), ("inicia la grabadora", CommandKind.RecordStart),
+            ("para de grabar", CommandKind.RecordStop), ("deja de grabar", CommandKind.RecordStop), ("para la grabadora", CommandKind.RecordStop),
+            ("pausa la grabadora", CommandKind.RecordPause), ("pon en pausa la grabadora", CommandKind.RecordPause),
+            ("inicia el stream", CommandKind.StreamStart), ("empieza el stream", CommandKind.StreamStart), ("empieza a transmitir", CommandKind.StreamStart), ("comienza a transmitir", CommandKind.StreamStart),
+            ("para el stream", CommandKind.StreamStop), ("deten el stream", CommandKind.StreamStop), ("para de transmitir", CommandKind.StreamStop), ("deja de transmitir", CommandKind.StreamStop),
         },
         Articles = new HashSet<string> { "el", "la", "los", "las", "un", "una", "mi", "de", "del" },
         WakeWords = new HashSet<string> { "ok", "oye", "hey" },

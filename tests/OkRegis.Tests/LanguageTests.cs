@@ -47,8 +47,9 @@ public class LanguageTests
     [InlineData("regis silencia el micro", CommandKind.Mute, "Mic/Aux")]
     [InlineData("regis sube spotify", CommandKind.VolumeUp, "Spotify")]
     [InlineData("regis baja discord", CommandKind.VolumeDown, "Discord")]
-    [InlineData("regis inicia la grabacion", CommandKind.RecordStart, null)]
-    [InlineData("regis detén la grabación", CommandKind.RecordStop, null)]
+    [InlineData("regis empieza a grabar", CommandKind.RecordStart, null)]
+    [InlineData("regis para de grabar", CommandKind.RecordStop, null)]
+    [InlineData("regis pausa la grabadora", CommandKind.RecordPause, null)]
     public void Espagnol(string heard, CommandKind kind, string? target)
     {
         var r = Parse(Language.Spanish, heard);
