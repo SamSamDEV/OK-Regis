@@ -149,7 +149,7 @@ public class SettingsForm : Form
         _mode.Items.AddRange(ModeLabels); _mode.SelectedIndex = (int)_s.VoiceMode;
         _host.Text = _s.ObsHost; _port.Value = _s.ObsPort;
         _volume.Value = (decimal)_s.VolumeStepDb; _confidence.Value = (decimal)_s.MinConfidence;
-        _autostart.Checked = Autostart.IsEnabled();
+        _autostart.Checked = _s.FirstRunDone ? Autostart.IsEnabled() : _s.StartWithWindows; // au premier lancement : la valeur par défaut (cochée)
         foreach (var kind in Enum.GetValues<CommandKind>())
             _commands.Items.Add(CommandLabels[(int)kind], _s.IsEnabled(kind));
         _nicknames.Text = string.Join(Environment.NewLine, _s.Nicknames.Select(n => $"{n.Key} = {n.Value}"));

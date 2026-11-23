@@ -48,7 +48,10 @@ public class ObsWebSocketClient : IObsClient, IDisposable
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler onConnected = (_, _) => done.TrySetResult();
         EventHandler<OBSWebsocketDotNet.Communication.ObsDisconnectionInfo> onFailed =
-            (_, info) => done.TrySetException(new InvalidOperationException("Connexion à OBS refusée : " + info.DisconnectReason));
+            (_, info) => done.TrySetException(new InvalidOperationException(
+                string.IsNullOrWhiteSpace(info.DisconnectReason)
+                    ? $"Connexion à OBS impossible (code {info.ObsCloseCode}). Vérifie qu'OBS est ouvert, que le serveur WebSocket est activé, et le port / mot de passe."
+                    : "Connexion à OBS refusée : " + info.DisconnectReason));
         _obs.Connected += onConnected;
         _obs.Disconnected += onFailed;
         try
