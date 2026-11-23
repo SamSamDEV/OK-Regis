@@ -1,0 +1,111 @@
+using OkRegis.Core.Settings;
+using OkRegis.Core.Text;
+
+namespace OkRegis.Core.Commands;
+
+/// <summary>Transforme une phrase entendue ("ok régis mets lol") en Command.</summary>
+public class CommandParser
+{
+    private enum Pool { Scenes, Sources, Audio, None }
+
+    // phrase (normalisée) → type de commande + où chercher la cible
+    private static readonly (string Verb, CommandKind Kind, Pool Pool)[] Verbs =
+    {
+        ("passe sur", CommandKind.SwitchScene, Pool.Scenes),
+        ("mets", CommandKind.SwitchScene, Pool.Scenes),
+        ("met", CommandKind.SwitchScene, Pool.Scenes),
+        ("scene", CommandKind.SwitchScene, Pool.Scenes),
+        ("affiche", CommandKind.ShowSource, Pool.Sources),
+        ("montre", CommandKind.ShowSource, Pool.Sources),
+        ("cache", CommandKind.HideSource, Pool.Sources),
+        ("masque", CommandKind.HideSource, Pool.Sources),
+        ("enleve", CommandKind.HideSource, Pool.Sources),
+        ("coupe", CommandKind.Mute, Pool.Audio),
+        ("remets", CommandKind.Unmute, Pool.Audio),
+        ("remet", CommandKind.Unmute, Pool.Audio),
+        ("retablis", CommandKind.Unmute, Pool.Audio),
+        ("monte", CommandKind.VolumeUp, Pool.Audio),
+        ("baisse", CommandKind.VolumeDown, Pool.Audio),
+    };
+
+    // verbes d'enregistrement / de stream : la "cible" est un mot fixe
+    private static readonly (string Verb, string Subject, CommandKind Kind)[] Fixed =
+    {
+        ("lance", "l enregistrement", CommandKind.RecordStart),
+        ("demarre", "l enregistrement", CommandKind.RecordStart),
+        ("arrete", "l enregistrement", CommandKind.RecordStop),
+        ("stop", "l enregistrement", CommandKind.RecordStop),
+        ("pause", "l enregistrement", CommandKind.RecordPause),
+        ("lance", "le stream", CommandKind.StreamStart),
+        ("demarre", "le stream", CommandKind.StreamStart),
+        ("arrete", "le stream", CommandKind.StreamStop),
+        ("stop", "le stream", CommandKind.StreamStop),
+    };
+
+    private static readonly HashSet<string> Articles = new() { "le", "la", "les", "l", "un", "une", "du", "de", "d" };
+
+    private readonly AppSettings _settings;
+    public CommandParser(AppSettings settings) => _settings = settings;
+
+    public ParseResult Parse(string heardText, ObsSnapshot snapshot)
+    {
+        var words = Normalizer.Normalize(heardText).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        // 1. mot d'appel : [ok|hey] <nom>
+        var start = words.Count > 0 && words[0] is "ok" or "hey" ? 1 : 0;
+        var nameWords = Normalizer.Normalize(_settings.AssistantName).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (nameWords.Length == 0 || words.Count < start + nameWords.Length
+            || !Normalizer.IsClose(string.Join(' ', words.Skip(start).Take(nameWords.Length)), string.Join(' ', nameWords)))
+            return new ParseResult(ParseStatus.NoWakeWord, null);
+        var rest = words.Skip(start + nameWords.Length).ToList();
+        var restText = string.Join(' ', rest);
+
+        // 2. enregistrement / stream (phrase fixe)
+        foreach (var (verb, subject, kind) in Fixed)
+        {
+            if (restText == $"{verb} {subject}" || restText == $"{verb} {subject.Replace("l enregistrement", "enregistrement")}")
+                return _settings.IsEnabled(kind)
+                    ? new ParseResult(ParseStatus.Ok, new Command(kind, null))
+                    : new ParseResult(ParseStatus.Disabled, null);
+        }
+
+        // 3. verbe + cible (le verbe le plus long d'abord)
+        foreach (var (verb, kind, pool) in Verbs.OrderByDescending(v => v.Verb.Length))
+        {
+            var verbWords = verb.Split(' ');
+            if (rest.Count < verbWords.Length || !rest.Take(verbWords.Length).SequenceEqual(verbWords)) continue;
+            if (!_settings.IsEnabled(kind)) return new ParseResult(ParseStatus.Disabled, null);
+
+            var targetWords = rest.Skip(verbWords.Length).SkipWhile(Articles.Contains).ToList();
+            var candidates = pool switch
+            {
+                Pool.Scenes => snapshot.Scenes,
+                Pool.Sources => snapshot.SourcesInCurrentScene,
+                _ => snapshot.AudioSources,
+            };
+            var target = FindTarget(string.Join(' ', targetWords), candidates);
+            return target is null
+                ? new ParseResult(ParseStatus.UnknownTarget, null)
+                : new ParseResult(ParseStatus.Ok, new Command(kind, target));
+        }
+        return new ParseResult(ParseStatus.UnknownVerb, null);
+    }
+
+    // Cherche la cible : surnom, nom exact, nom proche, puis mot contenu ("micro" dans "Micro/Aux").
+    private string? FindTarget(string spoken, IReadOnlyList<string> candidates)
+    {
+        if (spoken.Length == 0) return null;
+
+        foreach (var (nick, real) in _settings.Nicknames)
+            if (Normalizer.Normalize(nick) == spoken)
+            {
+                var hit = candidates.FirstOrDefault(c => Normalizer.Normalize(c) == Normalizer.Normalize(real));
+                if (hit is not null) return hit;
+            }
+
+        var normalized = candidates.Select(c => (Real: c, Norm: Normalizer.Normalize(c))).Where(c => c.Norm.Length > 0).ToList();
+        return normalized.FirstOrDefault(c => c.Norm == spoken).Real
+            ?? normalized.FirstOrDefault(c => Normalizer.IsClose(c.Norm, spoken)).Real
+            ?? normalized.FirstOrDefault(c => c.Norm.Split(' ').Contains(spoken)).Real;
+    }
+}
