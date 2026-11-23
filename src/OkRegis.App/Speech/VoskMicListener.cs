@@ -105,7 +105,7 @@ public class VoskMicListener : IMicListener
         _model?.Dispose(); _model = null; // libère les ~40 Mo en veille
     }
 
-    private void OnData(object? sender, WaveInArgs e)
+    private void OnData(object? sender, WaveInEventArgs e)
     {
         Heard? heard = null;
         lock (_lock)
