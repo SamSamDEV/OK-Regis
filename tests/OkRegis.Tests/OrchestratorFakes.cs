@@ -8,10 +8,12 @@ public class FakeMic : IMicListener
 {
     public event Action<Heard>? PhraseHeard;
     public bool Running { get; private set; }
+    public bool IsRunning => Running;
+    public bool FailStart { get; set; }
     public int StartCount { get; private set; }
     public List<string> Grammars { get; } = new();
     public bool Muted { get; set; }
-    public void Start(string? d) { Running = true; StartCount++; }
+    public void Start(string? d) { if (FailStart) return; Running = true; StartCount++; }
     public void Stop() => Running = false;
     public void SetGrammar(string g) => Grammars.Add(g);
     public void Say(string text, double conf = 0.9) => PhraseHeard?.Invoke(new Heard(text, conf));

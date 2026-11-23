@@ -83,15 +83,24 @@ public class MainForm : Form
         if (snap != null)
         {
             var bad = new HashSet<string>(_o.Grammar?.Unspeakable ?? Array.Empty<string>());
-            void Add(string type, string name)
+            void AddAll(string type, IReadOnlyList<string> names)
             {
-                var item = new ListViewItem(new[] { type, name, bad.Contains(name) ? "⚠ Régis ne peut pas entendre ce nom" : "" });
-                if (bad.Contains(name)) item.ForeColor = Color.Firebrick;
-                _names.Items.Add(item);
+                var seen = new HashSet<string>();
+                foreach (var name in names)
+                {
+                    var key = Core.Text.Normalizer.Normalize(name);
+                    var note = bad.Contains(name) ? "⚠ Régis ne peut pas entendre ce nom"
+                        : key.Length == 0 ? "⚠ Nom sans lettre ni chiffre : utilise un surnom"
+                        : !seen.Add(key) ? "⚠ Nom en double : Régis utilisera le premier"
+                        : "";
+                    var item = new ListViewItem(new[] { type, name, note });
+                    if (note.Length > 0) item.ForeColor = Color.Firebrick;
+                    _names.Items.Add(item);
+                }
             }
-            foreach (var n in snap.Scenes) Add("Scène", n);
-            foreach (var n in snap.SourcesInCurrentScene) Add("Source", n);
-            foreach (var n in snap.AudioSources) Add("Audio", n);
+            AddAll("Scène", snap.Scenes);
+            AddAll("Source", snap.SourcesInCurrentScene);
+            AddAll("Audio", snap.AudioSources);
         }
         _names.EndUpdate();
     }

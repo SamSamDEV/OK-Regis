@@ -161,8 +161,11 @@ public class SettingsForm : Form
     // Prévient si Vosk ne connaît pas le nom choisi.
     private void CheckName()
     {
-        _nameWarning.Text = _name.Text.Trim().Length > 0 && !_vocab.CanSpeak(_name.Text, out _)
-            ? "⚠ Régis ne pourra pas entendre ce nom : essaie une autre orthographe."
+        var text = _name.Text.Trim();
+        _nameWarning.MaximumSize = new Size(330, 0);
+        _nameWarning.Text = text.Length == 0 ? ""
+            : !_vocab.CanSpeak(text, out _) ? "⚠ Régis ne pourra pas entendre ce nom : essaie une autre orthographe."
+            : NameCheck.AssistantNameProblem(text, _s.Nicknames.Values) is { } problem ? "⚠ " + problem
             : "";
     }
 

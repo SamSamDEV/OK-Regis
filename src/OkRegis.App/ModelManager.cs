@@ -20,11 +20,15 @@ public static class ModelManager
         foreach (var root in new[] { Path.Combine(AppContext.BaseDirectory, "models"), UserModelsDir })
         {
             if (!Directory.Exists(root)) continue;
-            var hit = Directory.GetDirectories(root, "vosk-model*").FirstOrDefault(d => File.Exists(WordsFile(d)));
+            var hit = Directory.GetDirectories(root, "vosk-model*").FirstOrDefault(IsComplete);
             if (hit != null) return hit;
         }
         return null;
     }
+
+    // Un modèle à moitié décompressé n'est pas accepté : il faut le vocabulaire ET le modèle acoustique.
+    private static bool IsComplete(string dir) =>
+        File.Exists(WordsFile(dir)) && Directory.Exists(Path.Combine(dir, "am")) && Directory.Exists(Path.Combine(dir, "conf"));
 
     public static string WordsFile(string modelPath) => Path.Combine(modelPath, "graph", "words.txt");
 
@@ -49,7 +53,15 @@ public static class ModelManager
                 progress.Report(done / (double)total * 0.9);
             }
         }
-        ZipFile.ExtractToDirectory(zipPath, UserModelsDir, overwriteFiles: true);
+        // On décompresse dans un dossier temporaire puis on déplace : une coupure en route ne laisse jamais un modèle à moitié là.
+        var temp = Path.Combine(UserModelsDir, "_partiel");
+        if (Directory.Exists(temp)) Directory.Delete(temp, true);
+        ZipFile.ExtractToDirectory(zipPath, temp);
+        var extracted = Path.Combine(temp, ModelName);
+        var final = Path.Combine(UserModelsDir, ModelName);
+        if (Directory.Exists(final)) Directory.Delete(final, true);
+        Directory.Move(extracted, final);
+        Directory.Delete(temp, true);
         File.Delete(zipPath);
         progress.Report(1);
         return Find() ?? throw new InvalidOperationException("Modèle introuvable après décompression.");

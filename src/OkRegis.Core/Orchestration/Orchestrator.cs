@@ -69,14 +69,15 @@ public class Orchestrator
 
     public void Resume() => _ = RunSafe(async () =>
     {
-        bool connected;
+        bool connected, micFailed = false;
         lock (_stateLock)
         {
             if (State != RegisState.Paused) return;
             if (!_obsRunning) { State = RegisState.Idle; connected = false; }
-            else if (_obs.IsConnected) { StartListeningLocked(); connected = true; }
+            else if (_obs.IsConnected) { micFailed = !StartListeningLocked(); connected = true; }
             else { State = RegisState.Connecting; connected = false; }
         }
+        if (micFailed) AddHistory("", MicFailedText, false);
         Changed?.Invoke();
         if (!connected && State == RegisState.Connecting) await ConnectLoopAsync();
     });
@@ -125,11 +126,13 @@ public class Orchestrator
                 await _obs.ConnectAsync(_settings.ObsHost, _settings.ObsPort, password);
                 Snapshot = await _obs.GetSnapshotAsync();
                 RebuildGrammar();
+                bool micFailed;
                 lock (_stateLock)
                 {
                     if (State != RegisState.Connecting) return; // pause (ou OBS fermé) pendant la connexion : micro fermé
-                    StartListeningLocked();
+                    micFailed = !StartListeningLocked();
                 }
+                if (micFailed) AddHistory("", MicFailedText, false);
                 Changed?.Invoke();
                 return;
             }
@@ -142,11 +145,15 @@ public class Orchestrator
     }
 
     // Ouvre le micro et passe en "À l'écoute" (à appeler avec _stateLock pris).
-    private void StartListeningLocked()
+    // Renvoie false si le micro (ou le modèle vocal) n'a pas pu s'ouvrir : on reste en veille, sans faire semblant d'écouter.
+    private bool StartListeningLocked()
     {
         _mic.Start(_settings.MicDeviceName);
-        State = RegisState.Listening;
+        State = _mic.IsRunning ? RegisState.Listening : RegisState.Idle;
+        return _mic.IsRunning;
     }
+
+    private const string MicFailedText = "Micro ou modèle vocal indisponible : Régis n'écoute pas";
 
     // Change l'état sauf si l'utilisateur a mis Régis en pause. Renvoie false si la pause a gagné.
     private bool SetStateUnlessPaused(RegisState state)

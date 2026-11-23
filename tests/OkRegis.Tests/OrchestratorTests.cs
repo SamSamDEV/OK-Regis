@@ -161,6 +161,16 @@ public class OrchestratorTests
         Assert.True(_mic.Running);
     }
 
+    // Revue n°9 : un micro/modèle qui ne s'ouvre pas ne doit pas afficher "À l'écoute".
+    [Fact]
+    public void Micro_qui_ne_souvre_pas_nest_pas_ecoute_et_laisse_une_trace()
+    {
+        _mic.FailStart = true;
+        _watcher.RaiseStarted();
+        Assert.NotEqual(RegisState.Listening, _o.State);
+        Assert.Contains(_o.History, h => !h.Success && h.Result.Contains("Micro"));
+    }
+
     [Fact]
     public void Historique_limite_a_200()
     {

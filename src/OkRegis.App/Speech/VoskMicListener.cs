@@ -22,6 +22,8 @@ public class VoskMicListener : IMicListener
 
     public event Action<Heard>? PhraseHeard;
 
+    public bool IsRunning { get { lock (_lock) return _waveIn != null; } }
+
     public VoskMicListener(string modelPath)
     {
         _modelPath = modelPath;
@@ -125,22 +127,26 @@ public class VoskMicListener : IMicListener
         if (!doc.RootElement.TryGetProperty("result", out var result)) return null;
         var words = new List<string>();
         var confs = new List<double>();
+        var hasUnknown = false;
         foreach (var w in result.EnumerateArray())
         {
             var word = w.GetProperty("word").GetString() ?? "";
-            if (word == "[unk]" || word.Length == 0) continue;
+            if (word.Length == 0) continue;
+            if (word == "[unk]") { hasUnknown = true; continue; }
             words.Add(word);
             confs.Add(w.GetProperty("conf").GetDouble());
         }
-        return words.Count == 0 ? null : new Heard(string.Join(' ', words), confs.Average());
+        if (words.Count == 0) return null;
+        // Un mot inconnu au milieu ("régis NE coupe PAS spotify") peut changer le sens : confiance 0 = ignoré, mais noté dans l'historique.
+        return new Heard(string.Join(' ', words), hasUnknown ? 0.0 : confs.Average());
     }
 
     private static int FindDevice(string? name)
     {
-        if (string.IsNullOrEmpty(name)) return 0;
+        if (string.IsNullOrEmpty(name)) return -1; // -1 = micro par défaut de Windows
         for (var i = 0; i < WaveIn.DeviceCount; i++)
             if (name.StartsWith(WaveIn.GetCapabilities(i).ProductName, StringComparison.OrdinalIgnoreCase)) return i;
-        return 0;
+        return -1;
     }
 
     /// <summary>Noms des micros disponibles (pour les réglages).</summary>
