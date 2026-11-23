@@ -26,7 +26,11 @@ public class SettingsStore
         if (!File.Exists(_path)) return new AppSettings();
         try
         {
-            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path), Options) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path), Options) ?? new AppSettings();
+            // Les anciennes versions enregistraient les phrases françaises par défaut : on les oublie pour que la langue choisie s'applique.
+            foreach (var language in Enum.GetValues<Language>())
+                if (IsExactlyDefaults(settings.Responses, Languages.LanguagePack.For(language))) { settings.Responses = new(); break; }
+            return settings;
         }
         catch (JsonException)
         {
@@ -34,6 +38,10 @@ public class SettingsStore
             return new AppSettings();
         }
     }
+
+    private static bool IsExactlyDefaults(Dictionary<string, List<string>>? responses, Languages.LanguagePack pack) =>
+        responses is { Count: > 0 } && responses.Count == pack.DefaultResponses.Count
+        && pack.DefaultResponses.All(d => responses.TryGetValue(d.Key, out var list) && list.SequenceEqual(d.Value));
 
     public void Save(AppSettings settings)
     {

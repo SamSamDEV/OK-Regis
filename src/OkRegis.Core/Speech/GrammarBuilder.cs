@@ -1,5 +1,6 @@
 using System.Text.Json;
 using OkRegis.Core.Commands;
+using OkRegis.Core.Languages;
 using OkRegis.Core.Settings;
 using OkRegis.Core.Text;
 
@@ -15,10 +16,10 @@ public record GrammarResult(IReadOnlyList<string> Phrases, IReadOnlyList<string>
 /// </summary>
 public static class GrammarBuilder
 {
-    private static readonly string[] Wakes = { "", "ok ", "hey " };
-
     public static GrammarResult Build(AppSettings settings, ObsSnapshot obs, Vocabulary vocab)
     {
+        var pack = LanguagePack.For(settings.Language);
+        var wakes = new[] { "" }.Concat(pack.WakeWords.Select(w => w + " ")).ToArray(); // "", "ok ", "hey "…
         var phrases = new List<string>();
         var unspeakable = new List<string>();
 
@@ -32,27 +33,28 @@ public static class GrammarBuilder
             // Pour chaque type de cible : les noms (et surnoms) que Vosk sait dire.
             var pools = new Dictionary<CommandParser.TargetPool, List<string>>
             {
-                [CommandParser.TargetPool.Scenes] = SpokenNames(obs.Scenes, settings, vocab, unspeakable),
-                [CommandParser.TargetPool.Sources] = SpokenNames(obs.SourcesInCurrentScene, settings, vocab, unspeakable),
-                [CommandParser.TargetPool.Audio] = SpokenNames(obs.AudioSources, settings, vocab, unspeakable),
+                [CommandParser.TargetPool.Scenes] = SpokenNames(obs.Scenes, settings, vocab, pack, unspeakable),
+                [CommandParser.TargetPool.Sources] = SpokenNames(obs.SourcesInCurrentScene, settings, vocab, pack, unspeakable),
+                [CommandParser.TargetPool.Audio] = SpokenNames(obs.AudioSources, settings, vocab, pack, unspeakable),
             };
+            var article = KnownWords(pack.GrammarArticle, vocab); // "le" / "the" / "el" : « coupe le micro »
 
-            foreach (var (verb, kind, pool) in CommandParser.TargetVerbs)
+            foreach (var (verb, kind, pool) in pack.Verbs)
             {
                 if (!settings.IsEnabled(kind)) continue;
                 var verbWords = KnownWords(verb, vocab);
                 if (verbWords is null) continue; // un verbe que le modèle ne connaît pas : on ne le propose pas
                 foreach (var target in pools[pool])
                 {
-                    Add(phrases, name, $"{verbWords} {target}");
-                    if (pool == CommandParser.TargetPool.Audio) Add(phrases, name, $"{verbWords} le {target}"); // "coupe le micro"
+                    Add(phrases, wakes, name, $"{verbWords} {target}");
+                    if (pool == CommandParser.TargetPool.Audio && article != null) Add(phrases, wakes, name, $"{verbWords} {article} {target}");
                 }
             }
-            foreach (var (fixedPhrase, kind) in CommandParser.FixedPhrases)
+            foreach (var (fixedPhrase, kind) in pack.FixedCommands)
             {
                 if (!settings.IsEnabled(kind)) continue;
                 var words = KnownWords(fixedPhrase, vocab);
-                if (words != null) Add(phrases, name, words);
+                if (words != null) Add(phrases, wakes, name, words);
             }
         }
 
@@ -60,10 +62,10 @@ public static class GrammarBuilder
         return new GrammarResult(phrases.Distinct().ToList(), unspeakable);
     }
 
-    // Ajoute "<nom>", "ok <nom>" et "hey <nom>" devant la commande.
-    private static void Add(List<string> phrases, string name, string command)
+    // Ajoute "<nom>", "ok <nom>", "hey <nom>"… devant la commande.
+    private static void Add(List<string> phrases, string[] wakes, string name, string command)
     {
-        foreach (var wake in Wakes) phrases.Add($"{wake}{name} {command}".Trim());
+        foreach (var wake in wakes) phrases.Add($"{wake}{name} {command}".Trim());
     }
 
     // Les mots exacts du modèle pour une phrase, ou null si un mot manque.
@@ -75,7 +77,7 @@ public static class GrammarBuilder
     }
 
     // Les noms d'un type (+ les surnoms qui y mènent) tels que Vosk les entend ; les autres vont dans "unspeakable".
-    private static List<string> SpokenNames(IReadOnlyList<string> names, AppSettings settings, Vocabulary vocab, List<string> unspeakable)
+    private static List<string> SpokenNames(IReadOnlyList<string> names, AppSettings settings, Vocabulary vocab, LanguagePack pack, List<string> unspeakable)
     {
         var result = new List<string>();
         void Try(string spoken)
@@ -93,7 +95,7 @@ public static class GrammarBuilder
             Try(n);
             var tokens = Normalizer.Normalize(n).Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var token in tokens.Where(t => t.Length >= 3 && !t.All(char.IsDigit))) TryQuiet(token);
-            if (tokens.Any(CommandParser.MicTokens.Contains)) TryQuiet("micro");
+            if (tokens.Any(pack.MicTokens.Contains)) TryQuiet(pack.MicGrammarWord);
         }
         foreach (var (nick, real) in settings.Nicknames.ToList())
             if (names.Any(n => Normalizer.Normalize(n) == Normalizer.Normalize(real))) Try(nick);

@@ -1,4 +1,4 @@
-using OkRegis.Core.Commands;
+using OkRegis.Core.Languages;
 
 namespace OkRegis.Core.Text;
 
@@ -6,12 +6,13 @@ namespace OkRegis.Core.Text;
 public static class NameCheck
 {
     /// <summary>Renvoie un message d'avertissement, ou null si le nom convient.</summary>
-    public static string? AssistantNameProblem(string name, IEnumerable<string> obsNames)
+    public static string? AssistantNameProblem(string name, IEnumerable<string> obsNames, LanguagePack? pack = null)
     {
+        pack ??= LanguagePack.French;
         var n = Normalizer.Normalize(name);
         if (n.Length == 0) return "Le nom est vide.";
 
-        foreach (var word in CommandParser.FixedWords)
+        foreach (var word in pack.FixedWords)
         {
             var w = Normalizer.Normalize(word);
             if (n == w || (n.Length >= 5 && w.Length >= 5 && Normalizer.Distance(n, w) <= 1))

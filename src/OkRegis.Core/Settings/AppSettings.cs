@@ -10,12 +10,16 @@ public enum CommandKind
 /// <summary>Comment Régis répond : voix Windows, fichiers perso, simple bip ou silence.</summary>
 public enum ResponseMode { WindowsVoice, CustomFiles, Beep, Silent }
 
+/// <summary>La langue de l'appli : interface ET reconnaissance vocale.</summary>
+public enum Language { French, English, Spanish }
+
 /// <summary>Apparence : suivre Windows, clair, ou sombre (thème « nuit »).</summary>
 public enum ThemeMode { System, Light, Dark }
 
 /// <summary>Tous les réglages, enregistrés dans %AppData%\OK-Regis\settings.json.</summary>
 public class AppSettings
 {
+    public Language Language { get; set; } = Language.French;
     public string AssistantName { get; set; } = "régis";
     public string ObsHost { get; set; } = "localhost";
     public int ObsPort { get; set; } = 4455;
@@ -47,8 +51,8 @@ public class AppSettings
     /// <summary>surnom → vrai nom de scène ou de source dans OBS.</summary>
     public Dictionary<string, string> Nicknames { get; set; } = new();
 
-    /// <summary>clé d'action → phrases possibles ({scène} et {source} sont remplacés).</summary>
-    public Dictionary<string, List<string>> Responses { get; set; } = DefaultResponses();
+    /// <summary>Phrases PERSONNALISÉES (clé d'action → phrases). Vide = les phrases par défaut de la langue choisie.</summary>
+    public Dictionary<string, List<string>> Responses { get; set; } = new();
 
     /// <summary>clé d'action → chemin d'un fichier WAV/MP3 perso.</summary>
     public Dictionary<string, string> CustomResponseFiles { get; set; } = new();
@@ -57,21 +61,4 @@ public class AppSettings
     public bool IsEnabled(CommandKind kind) =>
         EnabledCommands.TryGetValue(kind, out var on) ? on
         : kind is not (CommandKind.StreamStart or CommandKind.StreamStop);
-
-    private static Dictionary<string, List<string>> DefaultResponses() => new()
-    {
-        ["scene"] = new() { "C'est parti, on passe sur {scène}", "Direction {scène}" },
-        ["show"] = new() { "{source} affichée" },
-        ["hide"] = new() { "{source} masquée" },
-        ["mute"] = new() { "{source} coupé" },
-        ["unmute"] = new() { "{source} rétabli" },
-        ["volumeUp"] = new() { "{source} plus fort" },
-        ["volumeDown"] = new() { "{source} moins fort" },
-        ["recordStart"] = new() { "Enregistrement lancé" },
-        ["recordStop"] = new() { "Enregistrement arrêté" },
-        ["recordPause"] = new() { "Enregistrement en pause" },
-        ["streamStart"] = new() { "Le stream démarre" },
-        ["streamStop"] = new() { "Le stream s'arrête" },
-        ["failed"] = new() { "Je n'ai pas pu le faire" },
-    };
 }
