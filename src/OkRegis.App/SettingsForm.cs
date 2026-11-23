@@ -36,6 +36,7 @@ public class SettingsForm : Form
     private readonly Label _testResult = new() { AutoSize = true };
     private readonly NumericUpDown _volume = new() { Minimum = 1, Maximum = 20, DecimalPlaces = 1 };
     private readonly NumericUpDown _confidence = new() { Minimum = 0.1m, Maximum = 0.95m, DecimalPlaces = 2, Increment = 0.05m };
+    private readonly CheckBox _saveCpu = new() { Text = "Économiser le processeur (n'analyse le micro que quand je parle)", AutoSize = true };
     private readonly CheckBox _autostart = new() { Text = "Lancer OK Régis au démarrage de Windows", AutoSize = true };
     private readonly CheckedListBox _commands = new() { CheckOnClick = true, Dock = DockStyle.Fill };
 
@@ -98,6 +99,7 @@ public class SettingsForm : Form
         table.Controls.Add(new Label()); table.Controls.Add(testRow);
         AddRow(table, "Pas de volume (dB)", _volume);
         AddRow(table, "Seuil de confiance", _confidence);
+        table.Controls.Add(_saveCpu); table.SetColumnSpan(_saveCpu, 2);
         table.Controls.Add(_autostart); table.SetColumnSpan(_autostart, 2);
 
         _name.TextChanged += (_, _) => CheckName();
@@ -135,6 +137,7 @@ public class SettingsForm : Form
         _mode.Items.AddRange(ModeLabels); _mode.SelectedIndex = _s.VoiceMode switch { ResponseMode.Beep => 1, ResponseMode.Silent => 2, _ => 0 };
         _theme.Items.AddRange(ThemeLabels); _theme.SelectedIndex = (int)_s.Theme;
         _host.Text = _s.ObsHost; _port.Value = _s.ObsPort;
+        _saveCpu.Checked = _s.SaveCpuWhenSilent;
         _volume.Value = (decimal)_s.VolumeStepDb; _confidence.Value = (decimal)_s.MinConfidence;
         _autostart.Checked = _s.FirstRunDone ? Autostart.IsEnabled() : _s.StartWithWindows; // au premier lancement : la valeur par défaut (cochée)
         foreach (var kind in Enum.GetValues<CommandKind>())
@@ -184,6 +187,7 @@ public class SettingsForm : Form
         _s.ObsHost = _host.Text.Trim().Length > 0 ? _host.Text.Trim() : "localhost";
         _s.ObsPort = (int)_port.Value;
         if (_password.Text.Length > 0) _s.ObsPasswordEncrypted = _secrets.Protect(_password.Text);
+        _s.SaveCpuWhenSilent = _saveCpu.Checked;
         _s.VolumeStepDb = (double)_volume.Value; _s.MinConfidence = (double)_confidence.Value;
         _s.StartWithWindows = _autostart.Checked;
         for (var i = 0; i < _commands.Items.Count; i++) _s.EnabledCommands[(CommandKind)i] = _commands.GetItemChecked(i);

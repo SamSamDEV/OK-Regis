@@ -43,6 +43,9 @@ public class MainForm : Form
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 }; // actif seulement quand la fenêtre est visible
 
     public bool Exiting { get; set; }
+
+    /// <summary>Levé quand l'utilisateur ferme la fenêtre : l'appli la détruit pour libérer la mémoire.</summary>
+    public event Action? HiddenToTray;
     public Button PauseButton { get; } = new() { Text = "Mettre en pause", AutoSize = true };
     public Button SettingsButton { get; } = new() { Text = "Réglages", AutoSize = true };
     private readonly Button _refreshButton = new() { Text = "↻  Actualiser", AutoSize = true };
@@ -57,7 +60,7 @@ public class MainForm : Form
         _scenes = new ScenesView(orchestrator, settings, vocab, nicknamesChanged, save) { Dock = DockStyle.Fill };
         _sounds = new ScenesView(orchestrator, settings, vocab, nicknamesChanged, save, audioOnly: true) { Dock = DockStyle.Fill };
         Text = "OK Régis"; ClientSize = new Size(840, 620); MinimumSize = new Size(720, 520); StartPosition = FormStartPosition.CenterScreen;
-        Icon = TrayIcons.For(RegisState.Listening);
+        Icon = (Icon)TrayIcons.For(RegisState.Listening).Clone(); // une copie : détruire la fenêtre ne doit pas détruire l'icône partagée
 
         _history.Columns.Add("Heure", 80); _history.Columns.Add("Entendu", 300); _history.Columns.Add("Résultat", 380);
         _themeButton.Click += (_, _) => _toggleTheme();
@@ -82,7 +85,7 @@ public class MainForm : Form
         // Le minuteur ne tourne que si la fenêtre est affichée : zéro travail quand elle est cachée ou réduite.
         VisibleChanged += (_, _) => UpdateTimer();
         Resize += (_, _) => UpdateTimer();
-        FormClosing += (_, e) => { if (!Exiting) { e.Cancel = true; Hide(); } };
+        FormClosing += (_, e) => { if (!Exiting) { e.Cancel = true; Hide(); HiddenToTray?.Invoke(); } };
     }
 
     private void UpdateTimer()

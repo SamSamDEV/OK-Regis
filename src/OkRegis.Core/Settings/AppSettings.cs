@@ -24,6 +24,8 @@ public class AppSettings
     public string? OutputDeviceName { get; set; }
     public double VolumeStepDb { get; set; } = 3.0;
     public double MinConfidence { get; set; } = 0.6;
+    /// <summary>N'analyser le micro que quand quelqu'un parle (beaucoup moins de processeur).</summary>
+    public bool SaveCpuWhenSilent { get; set; } = true;
     public bool StartWithWindows { get; set; } = true;
     public bool FirstRunDone { get; set; } = false;
     public ResponseMode VoiceMode { get; set; } = ResponseMode.WindowsVoice;

@@ -6,7 +6,10 @@ using OkRegis.Core.Text;
 
 namespace OkRegis.App;
 
-/// <summary>L'appli vit dans la zone de notification : icône, menu, infobulle, fenêtre principale.</summary>
+/// <summary>
+/// L'appli vit dans la zone de notification : icône, menu, infobulle. La fenêtre principale n'est créée qu'à la demande
+/// et détruite quand on la ferme, pour ne rien garder en mémoire quand on ne s'en sert pas.
+/// </summary>
 public class TrayApp : ApplicationContext
 {
     private readonly AppSettings _settings;
@@ -21,8 +24,8 @@ public class TrayApp : ApplicationContext
     private readonly ResourceMeter _meter = new();
     private readonly NotifyIcon _icon = new();
     private readonly ToolStripMenuItem _pauseItem = new("Mettre l'écoute en pause");
-    private readonly MainForm _main;
     private readonly SynchronizationContext _ui;
+    private MainForm? _main;   // null tant que la fenêtre n'est pas ouverte
     private DateTime _lastSample = DateTime.MinValue;
 
     public TrayApp(AppSettings settings, SettingsStore store, ISecretProtector secrets, Vocabulary vocab, ModelHost modelHost)
@@ -32,14 +35,9 @@ public class TrayApp : ApplicationContext
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         _ui = SynchronizationContext.Current!;
         _settings = settings; _store = store; _secrets = secrets; _vocab = vocab;
-        _mic = new VoskMicListener(modelHost);
+        _mic = new VoskMicListener(modelHost, () => _settings.SaveCpuWhenSilent);
         _responder = new WindowsResponder(settings);
         _orchestrator = new Orchestrator(settings, _obs, _mic, _responder, _watcher, vocab, secrets);
-        _main = new MainForm(_orchestrator, settings, vocab, _meter, SaveAndApply, () => _store.Save(_settings),
-            (key, text) => _responder.RespondAsync(key, text), ToggleTheme);
-
-        _main.PauseButton.Click += (_, _) => TogglePause();
-        _main.SettingsButton.Click += (_, _) => OpenSettings();
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Ouvrir la fenêtre", null, (_, _) => ShowMain());
@@ -58,14 +56,16 @@ public class TrayApp : ApplicationContext
         _orchestrator.Changed += () => _ui.Post(_ => OnChanged(), null);
         _orchestrator.Start();
         UpdateTooltip();
+        MemoryTrimmer.Schedule(10_000); // une fois le démarrage terminé, on rend la mémoire inutilisée
     }
 
     private void OnChanged()
     {
         _icon.Icon = TrayIcons.For(_orchestrator.State);
         _pauseItem.Text = _orchestrator.State == RegisState.Paused ? "Reprendre l'écoute" : "Mettre l'écoute en pause";
-        _main.RefreshView();
+        _main?.RefreshView();
         UpdateTooltip();
+        if (_main is not { Visible: true }) MemoryTrimmer.Schedule(8_000); // au repos : on allège (le minuteur est repoussé à chaque activité)
     }
 
     private void UpdateTooltip()
@@ -80,20 +80,36 @@ public class TrayApp : ApplicationContext
         if (_orchestrator.State == RegisState.Paused) _orchestrator.Resume(); else _orchestrator.Pause();
     }
 
+    // Crée la fenêtre si elle n'existe pas, puis l'affiche.
     private void ShowMain()
     {
+        if (_main == null)
+        {
+            _main = new MainForm(_orchestrator, _settings, _vocab, _meter, SaveAndApply, () => _store.Save(_settings),
+                (key, text) => _responder.RespondAsync(key, text), ToggleTheme);
+            _main.PauseButton.Click += (_, _) => TogglePause();
+            _main.SettingsButton.Click += (_, _) => OpenSettings();
+            // Fermée par l'utilisateur : on la détruit (un peu plus tard, hors de son propre événement) et on rend la mémoire.
+            _main.HiddenToTray += () => _ui.Post(_ =>
+            {
+                var form = _main; _main = null;
+                if (form != null) { form.Exiting = true; form.Dispose(); }
+                MemoryTrimmer.Schedule(1_500);
+            }, null);
+        }
         _main.Show(); _main.WindowState = FormWindowState.Normal; _main.Activate();
+        _main.RefreshView();
     }
 
     private void OpenSettings()
     {
         using var form = new SettingsForm(_settings, _secrets, _vocab, firstRun: false);
-        if (form.ShowDialog(_main.Visible ? _main : null) != DialogResult.OK) return;
+        if (form.ShowDialog(_main is { Visible: true } ? _main : null) != DialogResult.OK) return;
         _store.Save(_settings);
         Autostart.Set(_settings.StartWithWindows);
         var wasDark = Theme.Dark;
         Theme.Set(_settings.Theme);
-        if (Theme.Dark != wasDark) _main.ReapplyTheme(); // on ne refait tout l'affichage que si le thème a vraiment changé
+        if (Theme.Dark != wasDark) _main?.ReapplyTheme(); // on ne refait tout l'affichage que si le thème a vraiment changé
         _orchestrator.RebuildGrammarInBackground();
     }
 
@@ -103,14 +119,14 @@ public class TrayApp : ApplicationContext
         _settings.Theme = Theme.Dark ? ThemeMode.Light : ThemeMode.Dark;
         _store.Save(_settings);
         Theme.Set(_settings.Theme);
-        _main.ReapplyTheme();
+        _main?.ReapplyTheme();
     }
 
     // Surnom ajouté/retiré : l'affichage suit tout de suite, la grammaire (lourde) se refait en arrière-plan.
     private void SaveAndApply()
     {
         _store.Save(_settings);
-        _main.RefreshView();
+        _main?.RefreshView();
         _orchestrator.RebuildGrammarInBackground();
     }
 
@@ -118,7 +134,7 @@ public class TrayApp : ApplicationContext
     {
         _icon.Visible = false; _icon.Dispose();
         _watcher.Dispose(); _mic.Dispose(); _obs.Dispose();
-        _main.Exiting = true; _main.Close();
+        if (_main != null) { _main.Exiting = true; _main.Close(); }
         ExitThread();
     }
 }
