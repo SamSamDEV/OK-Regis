@@ -1,35 +1,38 @@
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using OkRegis.Core.Settings;
 
 namespace OkRegis.App;
 
-/// <summary>Couleurs et style de l'appli, en thème clair ou sombre (« nuit »).</summary>
+/// <summary>Couleurs et style de l'appli, en thème clair (« bright ») ou sombre (« nuit »). Une seule couleur d'accent : le bleu.</summary>
 public static class Theme
 {
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] private static extern int SetWindowTheme(IntPtr hwnd, string? subApp, string? subIdList);
 
     public static bool Dark { get; private set; }
-    public static Color Bg, Surface, Border, Text, Muted, Accent, AccentText, Danger, Success, Warning;
+    public static Color Bg, Surface, SurfaceAlt, Border, Text, Muted, Accent, AccentText, ChipBack, Danger, Success, Warning;
     public static readonly Font BaseFont = new("Segoe UI", 9.5f);
     public static readonly Font TitleFont = new("Segoe UI Semibold", 15f);
+    public static readonly Font CardTitleFont = new("Segoe UI Semibold", 11.5f);
+    public static readonly Font SmallFont = new("Segoe UI", 8.5f);
 
     public static void Set(ThemeMode mode)
     {
         Dark = mode == ThemeMode.Dark || (mode == ThemeMode.System && SystemUsesDark());
         if (Dark)
         {
-            Bg = Color.FromArgb(20, 22, 27); Surface = Color.FromArgb(30, 33, 40); Border = Color.FromArgb(48, 53, 63);
-            Text = Color.FromArgb(230, 232, 236); Muted = Color.FromArgb(139, 147, 161);
-            Accent = Color.FromArgb(99, 102, 241); AccentText = Color.White;
-            Danger = Color.FromArgb(239, 83, 80); Success = Color.FromArgb(52, 199, 130); Warning = Color.FromArgb(245, 166, 35);
+            Bg = Color.FromArgb(16, 18, 22); Surface = Color.FromArgb(26, 29, 35); SurfaceAlt = Color.FromArgb(38, 42, 50);
+            Border = Color.FromArgb(44, 49, 58); Text = Color.FromArgb(232, 234, 238); Muted = Color.FromArgb(141, 149, 163);
+            Accent = Color.FromArgb(59, 130, 246); AccentText = Color.White; ChipBack = Color.FromArgb(30, 58, 110);
+            Danger = Color.FromArgb(239, 68, 68); Success = Color.FromArgb(34, 197, 94); Warning = Color.FromArgb(245, 158, 11);
         }
         else
         {
-            Bg = Color.FromArgb(243, 244, 247); Surface = Color.White; Border = Color.FromArgb(217, 220, 227);
-            Text = Color.FromArgb(27, 31, 39); Muted = Color.FromArgb(107, 114, 128);
-            Accent = Color.FromArgb(79, 70, 229); AccentText = Color.White;
+            Bg = Color.FromArgb(245, 246, 248); Surface = Color.White; SurfaceAlt = Color.FromArgb(240, 242, 245);
+            Border = Color.FromArgb(227, 229, 234); Text = Color.FromArgb(20, 23, 31); Muted = Color.FromArgb(107, 114, 128);
+            Accent = Color.FromArgb(37, 99, 235); AccentText = Color.White; ChipBack = Color.FromArgb(219, 234, 254);
             Danger = Color.FromArgb(220, 38, 38); Success = Color.FromArgb(22, 163, 74); Warning = Color.FromArgb(217, 119, 6);
         }
     }
@@ -55,38 +58,66 @@ public static class Theme
                 break;
             case Button b:
                 b.FlatStyle = FlatStyle.Flat; b.Cursor = Cursors.Hand; b.UseVisualStyleBackColor = false;
-                b.FlatAppearance.BorderSize = 1;
-                if ((b.Tag as string) == "primary")
-                {
-                    b.BackColor = Accent; b.ForeColor = AccentText; b.FlatAppearance.BorderColor = Accent;
-                }
-                else
-                {
-                    b.BackColor = Surface; b.ForeColor = Text; b.FlatAppearance.BorderColor = Border;
-                }
-                b.Padding = new Padding(10, 3, 10, 3); b.MinimumSize = new Size(0, 32);
+                b.FlatAppearance.BorderSize = 0;
+                var primary = (b.Tag as string) == "primary";
+                b.BackColor = primary ? Accent : SurfaceAlt;
+                b.ForeColor = primary ? AccentText : Text;
+                b.FlatAppearance.MouseOverBackColor = primary ? ControlPaint.Light(Accent, 0.15f) : Border;
+                b.MinimumSize = new Size(0, 34);
+                b.SizeChanged -= Round; b.SizeChanged += Round; Round(b, EventArgs.Empty);
                 break;
             case ListView lv:
                 lv.BackColor = Surface; lv.ForeColor = Text; lv.BorderStyle = BorderStyle.None;
                 if (lv.IsHandleCreated) SetWindowTheme(lv.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null);
                 else lv.HandleCreated += (_, _) => SetWindowTheme(lv.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null);
                 break;
-            case TextBox t: t.BackColor = Surface; t.ForeColor = Text; t.BorderStyle = BorderStyle.FixedSingle; break;
-            case ComboBox cb: cb.FlatStyle = FlatStyle.Flat; cb.BackColor = Surface; cb.ForeColor = Text; break;
-            case NumericUpDown n: n.BackColor = Surface; n.ForeColor = Text; n.BorderStyle = BorderStyle.FixedSingle; break;
+            case TextBox t: t.BackColor = SurfaceAlt; t.ForeColor = Text; t.BorderStyle = BorderStyle.FixedSingle; break;
+            case ComboBox cb:
+                cb.FlatStyle = FlatStyle.Flat; cb.BackColor = SurfaceAlt; cb.ForeColor = Text;
+                if (cb.IsHandleCreated) SetWindowTheme(cb.Handle, Dark ? "DarkMode_CFD" : "Explorer", null); // liste déroulante sombre
+                else cb.HandleCreated += (_, _) => SetWindowTheme(cb.Handle, Dark ? "DarkMode_CFD" : "Explorer", null);
+                break;
+            case NumericUpDown n: n.BackColor = SurfaceAlt; n.ForeColor = Text; n.BorderStyle = BorderStyle.FixedSingle; break;
             case CheckedListBox cl: cl.BackColor = Surface; cl.ForeColor = Text; cl.BorderStyle = BorderStyle.None; break;
             case Label l:
                 l.BackColor = Color.Transparent;
-                l.ForeColor = (l.Tag as string) switch { "muted" => Muted, "danger" => Danger, _ => Text };
+                l.ForeColor = (l.Tag as string) switch { "muted" => Muted, "danger" => Danger, "accent" => Accent, _ => Text };
                 break;
             case RadioButton { Appearance: Appearance.Button }: break; // boutons d'onglets : stylés par NavTabs
             case CheckBox or RadioButton: c.ForeColor = Text; c.BackColor = Color.Transparent; break;
             case NavTabs nav: nav.BackColor = Bg; nav.ApplyTheme(); break;
+            case Card card: card.BackColor = (card.Tag as string) == "flat" ? Surface : Bg; card.Invalidate(); break;
+            case Chip chip: chip.Invalidate(); break;
+            case CardList list:
+                list.BackColor = Bg;
+                if (list.IsHandleCreated) SetWindowTheme(list.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null); // barre de défilement sombre
+                else list.HandleCreated += (_, _) => SetWindowTheme(list.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null);
+                break;
             case Panel or TableLayoutPanel or FlowLayoutPanel or UserControl:
                 c.BackColor = (c.Tag as string) == "card" ? Surface : Bg;
                 break;
         }
         foreach (Control child in c.Controls) Apply(child);
+    }
+
+    // Coins arrondis pour les boutons.
+    private static void Round(object? sender, EventArgs e)
+    {
+        if (sender is not Button b || b.Width < 10 || b.Height < 10) return;
+        b.Region?.Dispose();
+        b.Region = new Region(RoundedRect(new Rectangle(0, 0, b.Width, b.Height), 8));
+    }
+
+    public static GraphicsPath RoundedRect(Rectangle r, int radius)
+    {
+        var d = radius * 2;
+        var path = new GraphicsPath();
+        path.AddArc(r.X, r.Y, d, d, 180, 90);
+        path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     private static void DarkTitleBar(IntPtr handle)

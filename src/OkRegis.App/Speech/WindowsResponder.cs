@@ -32,7 +32,8 @@ public class WindowsResponder : IResponder
                 case ResponseMode.Beep:
                     await PlayAsync(Beep());
                     break;
-                case ResponseMode.CustomFiles when _settings.CustomResponseFiles.TryGetValue(actionKey, out var file) && File.Exists(file):
+                case ResponseMode.WindowsVoice or ResponseMode.CustomFiles
+                    when _settings.CustomResponseFiles.TryGetValue(actionKey, out var file) && File.Exists(file): // un son choisi passe avant la voix
                     using (var reader = new AudioFileReader(file)) await PlayAsync(reader);
                     break;
                 default: // voix Windows (aussi quand le fichier perso est absent)

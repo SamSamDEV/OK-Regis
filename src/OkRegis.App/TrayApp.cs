@@ -14,6 +14,7 @@ public class TrayApp : ApplicationContext
     private readonly ISecretProtector _secrets;
     private readonly Vocabulary _vocab;
     private readonly Orchestrator _orchestrator;
+    private readonly WindowsResponder _responder;
     private readonly ObsProcessWatcher _watcher = new();
     private readonly ObsWebSocketClient _obs = new();
     private readonly VoskMicListener _mic;
@@ -32,8 +33,10 @@ public class TrayApp : ApplicationContext
         _ui = SynchronizationContext.Current!;
         _settings = settings; _store = store; _secrets = secrets; _vocab = vocab;
         _mic = new VoskMicListener(modelHost);
-        _orchestrator = new Orchestrator(settings, _obs, _mic, new WindowsResponder(settings), _watcher, vocab, secrets);
-        _main = new MainForm(_orchestrator, settings, vocab, _meter, SaveAndApply);
+        _responder = new WindowsResponder(settings);
+        _orchestrator = new Orchestrator(settings, _obs, _mic, _responder, _watcher, vocab, secrets);
+        _main = new MainForm(_orchestrator, settings, vocab, _meter, SaveAndApply, () => _store.Save(_settings),
+            (key, text) => _responder.RespondAsync(key, text), ToggleTheme);
 
         _main.PauseButton.Click += (_, _) => TogglePause();
         _main.SettingsButton.Click += (_, _) => OpenSettings();
@@ -87,6 +90,15 @@ public class TrayApp : ApplicationContext
         using var form = new SettingsForm(_settings, _secrets, _vocab, firstRun: false);
         if (form.ShowDialog(_main.Visible ? _main : null) != DialogResult.OK) return;
         SaveAndApply();
+    }
+
+    // Bouton ☀/☾ : bascule clair ↔ sombre (et mémorise le choix).
+    private void ToggleTheme()
+    {
+        _settings.Theme = Theme.Dark ? ThemeMode.Light : ThemeMode.Dark;
+        _store.Save(_settings);
+        Theme.Set(_settings.Theme);
+        _main.ReapplyTheme();
     }
 
     private void SaveAndApply()

@@ -18,7 +18,7 @@ public class SettingsForm : Form
         "Mettre l'enregistrement en pause", "Lancer le stream (déconseillé)", "Arrêter le stream",
     };
     private static readonly string[] ThemeLabels = { "Automatique (comme Windows)", "Clair", "Sombre (nuit)" };
-    private static readonly string[] ModeLabels = { "Voix Windows", "Mes propres fichiers son", "Juste un bip", "Silence" };
+    private static readonly string[] ModeLabels = { "Voix de Régis (ou mes sons)", "Juste un bip", "Silence" };
 
     private readonly AppSettings _s;
     private readonly ISecretProtector _secrets;
@@ -38,9 +38,6 @@ public class SettingsForm : Form
     private readonly NumericUpDown _confidence = new() { Minimum = 0.1m, Maximum = 0.95m, DecimalPlaces = 2, Increment = 0.05m };
     private readonly CheckBox _autostart = new() { Text = "Lancer OK Régis au démarrage de Windows", AutoSize = true };
     private readonly CheckedListBox _commands = new() { CheckOnClick = true, Dock = DockStyle.Fill };
-    private readonly TextBox _nicknames = new() { Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
-    private readonly TextBox _responses = new() { Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
-    private readonly TextBox _files = new() { Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical };
 
     public SettingsForm(AppSettings settings, ISecretProtector secrets, Vocabulary vocab, bool firstRun)
     {
@@ -53,8 +50,6 @@ public class SettingsForm : Form
         var tabs = new NavTabs();
         tabs.Add("Général", BuildGeneralTab(firstRun));
         tabs.Add("Commandes", WrapTab("Coche les commandes que Régis a le droit d'exécuter.", _commands));
-        tabs.Add("Surnoms", WrapTab("Une ligne par surnom :  surnom = vrai nom dans OBS  (plus simple : double-clic sur une scène dans la fenêtre principale)", _nicknames));
-        tabs.Add("Réponses", BuildResponsesTab());
 
         var ok = new Button { Text = "Enregistrer", Tag = "primary", DialogResult = DialogResult.OK, Width = 110 };
         var cancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Width = 80 };
@@ -97,29 +92,16 @@ public class SettingsForm : Form
         AddRow(table, "Mot de passe WebSocket", _password);
         var test = new Button { Text = "Tester la connexion à OBS", AutoSize = true };
         test.Click += async (_, _) => await TestConnectionAsync();
-        table.Controls.Add(test); table.Controls.Add(_testResult);
+        var testRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Dock = DockStyle.Fill };
+        _testResult.Margin = new Padding(8, 8, 0, 0);
+        testRow.Controls.Add(test); testRow.Controls.Add(_testResult);
+        table.Controls.Add(new Label()); table.Controls.Add(testRow);
         AddRow(table, "Pas de volume (dB)", _volume);
         AddRow(table, "Seuil de confiance", _confidence);
         table.Controls.Add(_autostart); table.SetColumnSpan(_autostart, 2);
 
         _name.TextChanged += (_, _) => CheckName();
         page.Controls.Add(table);
-        return page;
-    }
-
-    private Control BuildResponsesTab()
-    {
-        var page = new Panel();
-        var split = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
-        split.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        split.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
-        split.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        split.RowStyles.Add(new RowStyle(SizeType.Percent, 40));
-        split.Controls.Add(new Label { Text = "Phrases : clé : phrase 1 | phrase 2   ({scène} et {source} sont remplacés)", AutoSize = true });
-        split.Controls.Add(_responses);
-        split.Controls.Add(new Label { Text = "Fichiers son perso (mode « Mes propres fichiers ») : clé = chemin .wav/.mp3", AutoSize = true });
-        split.Controls.Add(_files);
-        page.Controls.Add(split);
         return page;
     }
 
@@ -150,16 +132,13 @@ public class SettingsForm : Form
         _mic.SelectedIndex = Math.Max(0, _mic.FindString(_s.MicDeviceName ?? ""));
         _output.Items.Add("(sortie par défaut)"); _output.Items.AddRange(WindowsResponder.ListDevices().ToArray());
         _output.SelectedIndex = Math.Max(0, _output.FindString(_s.OutputDeviceName ?? ""));
-        _mode.Items.AddRange(ModeLabels); _mode.SelectedIndex = (int)_s.VoiceMode;
+        _mode.Items.AddRange(ModeLabels); _mode.SelectedIndex = _s.VoiceMode switch { ResponseMode.Beep => 1, ResponseMode.Silent => 2, _ => 0 };
         _theme.Items.AddRange(ThemeLabels); _theme.SelectedIndex = (int)_s.Theme;
         _host.Text = _s.ObsHost; _port.Value = _s.ObsPort;
         _volume.Value = (decimal)_s.VolumeStepDb; _confidence.Value = (decimal)_s.MinConfidence;
         _autostart.Checked = _s.FirstRunDone ? Autostart.IsEnabled() : _s.StartWithWindows; // au premier lancement : la valeur par défaut (cochée)
         foreach (var kind in Enum.GetValues<CommandKind>())
             _commands.Items.Add(CommandLabels[(int)kind], _s.IsEnabled(kind));
-        _nicknames.Text = string.Join(Environment.NewLine, _s.Nicknames.Select(n => $"{n.Key} = {n.Value}"));
-        _responses.Text = string.Join(Environment.NewLine, _s.Responses.Select(r => $"{r.Key}: {string.Join(" | ", r.Value)}"));
-        _files.Text = string.Join(Environment.NewLine, _s.CustomResponseFiles.Select(f => $"{f.Key} = {f.Value}"));
         CheckName();
     }
 
@@ -200,7 +179,7 @@ public class SettingsForm : Form
         _s.AssistantName = _name.Text.Trim().Length > 0 ? _name.Text.Trim() : _s.AssistantName;
         _s.MicDeviceName = _mic.SelectedIndex > 0 ? (string)_mic.SelectedItem! : null;
         _s.OutputDeviceName = _output.SelectedIndex > 0 ? (string)_output.SelectedItem! : null;
-        _s.VoiceMode = (ResponseMode)_mode.SelectedIndex;
+        _s.VoiceMode = _mode.SelectedIndex switch { 1 => ResponseMode.Beep, 2 => ResponseMode.Silent, _ => ResponseMode.WindowsVoice };
         _s.Theme = (ThemeMode)_theme.SelectedIndex;
         _s.ObsHost = _host.Text.Trim().Length > 0 ? _host.Text.Trim() : "localhost";
         _s.ObsPort = (int)_port.Value;
@@ -209,28 +188,6 @@ public class SettingsForm : Form
         _s.StartWithWindows = _autostart.Checked;
         for (var i = 0; i < _commands.Items.Count; i++) _s.EnabledCommands[(CommandKind)i] = _commands.GetItemChecked(i);
 
-        _s.Nicknames = ParsePairs(_nicknames.Text, '=');
-        _s.CustomResponseFiles = ParsePairs(_files.Text, '=');
-        var responses = new Dictionary<string, List<string>>();
-        foreach (var (key, value) in ParsePairs(_responses.Text, ':'))
-        {
-            var phrases = value.Split('|').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
-            if (phrases.Count > 0) responses[key] = phrases;
-        }
-        if (responses.Count > 0) _s.Responses = responses;
         _s.FirstRunDone = true;
-    }
-
-    private static Dictionary<string, string> ParsePairs(string text, char separator)
-    {
-        var result = new Dictionary<string, string>();
-        foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var i = line.IndexOf(separator);
-            if (i <= 0) continue;
-            var key = line[..i].Trim(); var value = line[(i + 1)..].Trim();
-            if (key.Length > 0 && value.Length > 0) result[key] = value;
-        }
-        return result;
     }
 }
