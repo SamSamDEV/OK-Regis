@@ -44,6 +44,12 @@ public class CommandParser
 
     private static readonly HashSet<string> Articles = new() { "le", "la", "les", "l", "un", "une", "du", "de", "d" };
 
+    /// <summary>Tous les mots-outils que Régis doit pouvoir entendre (verbes, articles, ok/hey...).</summary>
+    public static IEnumerable<string> FixedWords =>
+        Verbs.Select(v => v.Verb).Concat(Fixed.Select(f => f.Verb + " " + f.Subject))
+             .Concat(Articles).Concat(new[] { "ok", "hey", "enregistrement", "stream", "micro" })
+             .SelectMany(p => p.Split(' ')).Distinct();
+
     private readonly AppSettings _settings;
     public CommandParser(AppSettings settings) => _settings = settings;
 
