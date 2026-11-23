@@ -90,7 +90,7 @@ public static class Theme
             case NavTabs nav: nav.BackColor = Bg; nav.ApplyTheme(); break;
             case Card card: card.BackColor = (card.Tag as string) == "flat" ? Surface : Bg; card.Invalidate(); break;
             case Chip chip: chip.BackColor = Surface; chip.Invalidate(); break;
-            case RowPanel row: row.BackColor = row.Dragging ? SurfaceAlt : Surface; break;
+            case NameRow row: row.BackColor = row.Dragging ? SurfaceAlt : Surface; row.Invalidate(); break;
             case CardList list:
                 list.BackColor = Bg;
                 if (list.IsHandleCreated) SetWindowTheme(list.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null); // barre de défilement sombre

@@ -86,6 +86,15 @@ public class CardList : FlowLayoutPanel
         if (scroll > 0) AutoScrollPosition = new Point(0, scroll);
     }
 
+    /// <summary>Levé quand l'utilisateur fait défiler la liste (molette ou barre).</summary>
+    public event Action? Scrolled;
+
+    protected override void WndProc(ref Message m)
+    {
+        base.WndProc(ref m);
+        if (m.Msg is 0x0115 or 0x020A) Scrolled?.Invoke(); // WM_VSCROLL, WM_MOUSEWHEEL
+    }
+
     // Empêche la liste de sauter quand un champ prend le focus (elle restait défilée vers le bas).
     protected override Point ScrollToControl(Control activeControl) => DisplayRectangle.Location;
 

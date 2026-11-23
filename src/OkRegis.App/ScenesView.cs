@@ -7,10 +7,10 @@ namespace OkRegis.App;
 
 /// <summary>
 /// Les scènes comme dans OBS : une carte par scène avec ses sources dessous, plus une carte « Sons » (muet en un clic).
-/// Chaque nom a ses surnoms (pastilles) et un champ pour en ajouter. Les scènes et les sources se réordonnent à la souris
-/// (l'ordre est celui de l'appli : OBS n'est pas modifié).
+/// Chaque ligne affiche ses surnoms en pastilles et un bouton « + Surnom » (un seul champ de saisie partagé s'ouvre au clic).
+/// Les scènes et les sources se réordonnent à la souris (l'ordre est celui de l'appli : OBS n'est pas modifié).
 /// </summary>
-public class ScenesView : CardList
+public class ScenesView : Panel
 {
     private const string AudioKey = "(audio)";
 
@@ -20,47 +20,93 @@ public class ScenesView : CardList
     private readonly Action _nicknamesChanged; // enregistre et reconstruit la grammaire (en arrière-plan)
     private readonly Action _save;             // enregistre seulement
 
+    private readonly CardList _list = new() { Dock = DockStyle.Fill };
+    private readonly NicknameEditor _editor = new();
     private readonly HashSet<string> _expanded = new();   // scènes dépliées
     private readonly Dictionary<string, bool> _muted = new();
-    private readonly Dictionary<string, List<Button>> _muteButtons = new();
+    private readonly Dictionary<string, List<NameRow>> _muteRows = new();
+    private readonly Dictionary<string, (NameRow Header, int Count)> _headers = new();
     private bool _expandInitialized;
     private string _signature = "";
 
     public ScenesView(Orchestrator o, AppSettings settings, Vocabulary vocab, Action nicknamesChanged, Action save)
     {
         _o = o; _settings = settings; _vocab = vocab; _nicknamesChanged = nicknamesChanged; _save = save;
+        Controls.Add(_editor); Controls.Add(_list);   // l'éditeur est au-dessus de la liste
+        _list.Scrolled += () => _editor.Close();
+        _editor.BringToFront();
     }
 
-    /// <summary>Force la reconstruction au prochain RebuildIfChanged (ex. après un changement de thème).</summary>
-    public void Invalidate() => _signature = "";
+    /// <summary>La liste qui défile (utile pour les tests d'affichage).</summary>
+    public CardList List => _list;
 
-    // On ne reconstruit que si le contenu change (sinon on perdrait le texte en cours de saisie et l'appli ramerait).
+    /// <summary>Force la reconstruction au prochain RebuildIfChanged (ex. après un changement de thème).</summary>
+    public void ForceRebuild() => _signature = "";
+
+    // On ne reconstruit que si le contenu change (sinon on perdrait la saisie et l'appli ramerait).
     public void RebuildIfChanged()
     {
         var signature = Signature();
-        if (signature == _signature) return;
-        _signature = signature;
-        Build();
+        if (signature != _signature) { _signature = signature; Build(); }
+        UpdateCurrentScene(); // changer de scène dans OBS ne reconstruit rien : on met juste à jour les en-têtes
+    }
+
+    // Met à jour « ● affichée en ce moment » sur place.
+    private void UpdateCurrentScene()
+    {
+        var current = _o.Snapshot?.CurrentScene;
+        foreach (var (scene, (header, count)) in _headers)
+        {
+            var isCurrent = scene == current;
+            var info = (isCurrent ? "● affichée en ce moment   " : "") + $"{count} source{(count > 1 ? "s" : "")}";
+            if (header.Info == info) continue;
+            header.Info = info; header.InfoAccent = isCurrent; header.Invalidate();
+        }
+    }
+
+    // Déplier / replier une scène : seules ses lignes sont créées ou supprimées.
+    private void ToggleGroup(string scene, GroupCard group, NameRow header)
+    {
+        var snap = _o.Snapshot;
+        if (snap is null) return;
+        var existing = group.Stack.Controls.OfType<FlowLayoutPanel>().FirstOrDefault(c => c.Tag is "rows");
+        if (_expanded.Remove(scene))
+        {
+            header.Expanded = false;
+            if (existing != null) { group.Stack.Controls.Remove(existing); existing.Dispose(); }
+        }
+        else
+        {
+            _expanded.Add(scene); header.Expanded = true;
+            var sources = snap.SourcesByScene != null && snap.SourcesByScene.TryGetValue(scene, out var s) ? s : Array.Empty<string>();
+            var bad = new HashSet<string>(_o.Grammar?.Unspeakable ?? Array.Empty<string>());
+            var rows = BuildRows(scene, sources, NameRow.RowKind.Source, bad);
+            group.Stack.Controls.Add(rows);
+            Theme.Apply(rows);
+        }
+        header.Invalidate();
+        group.FitChildren();
+        _signature = Signature();
     }
 
     private string Signature()
     {
         var snap = _o.Snapshot;
         if (snap is null) return "none" + Theme.Dark;
-        return string.Join("|", snap.Scenes) + "#" + snap.CurrentScene + "#" + string.Join("|", snap.AudioSources) + "#"
+        return string.Join("|", snap.Scenes) + "#" + string.Join("|", snap.AudioSources) + "#"
             + string.Join("|", snap.SourcesByScene?.Select(p => p.Key + ":" + string.Join(",", p.Value)) ?? Array.Empty<string>()) + "#"
             + string.Join("|", _settings.Nicknames.Select(n => n.Key + "=" + n.Value)) + "#"
-            + string.Join("|", _o.Grammar?.Unspeakable ?? Array.Empty<string>()) + "#"
-            + string.Join("|", _expanded) + "#" + Theme.Dark;
+            + string.Join("|", _o.Grammar?.Unspeakable ?? Array.Empty<string>()) + "#" + Theme.Dark;
     }
 
     // ---- construction ----
 
     private void Build()
     {
+        _editor.Close();
         var snap = _o.Snapshot;
         var items = new List<Control>();
-        _muteButtons.Clear();
+        _muteRows.Clear(); _headers.Clear();
 
         if (snap is null)
         {
@@ -77,8 +123,8 @@ public class ScenesView : CardList
             foreach (var scene in OrderHelper.Apply(snap.Scenes, _settings.SceneOrder)) items.Add(BuildSceneGroup(scene, snap, bad));
         }
 
-        SetItems(items);
-        Theme.Apply(this);
+        _list.SetItems(items);
+        Theme.Apply(_list);
         foreach (var group in items.OfType<GroupCard>()) group.FitChildren();
         UpdateMuteButtons();
     }
@@ -97,41 +143,35 @@ public class ScenesView : CardList
         header.Controls.Add(new Label { Text = "Sons (audio)", Font = Theme.CardTitleFont, AutoSize = true, Location = new Point(18, 10) });
         header.Controls.Add(new Label { Text = "Coupe ou rétablis un son d'un clic. À la voix : « coupe le micro », « mute discord »…", Tag = "muted", Font = Theme.SmallFont, AutoSize = true, Location = new Point(18, 36) });
         group.Stack.Controls.Add(header);
-        group.Stack.Controls.Add(BuildRows(AudioKey, snap.AudioSources, audio: true, bad, group));
+        group.Stack.Controls.Add(BuildRows(AudioKey, snap.AudioSources, NameRow.RowKind.Audio, bad));
         return group;
     }
 
     private GroupCard BuildSceneGroup(string scene, ObsSnapshot snap, HashSet<string> bad)
     {
-        const int W = 692;
         var group = new GroupCard { Tag = scene, Size = new Size(700, 100) };
         var expanded = _expanded.Contains(scene);
         var sources = snap.SourcesByScene != null && snap.SourcesByScene.TryGetValue(scene, out var s) ? s : Array.Empty<string>();
 
-        var header = new Panel { Size = new Size(W, 96), Tag = "card" };
-        var handle = new Label { Text = "⠿", Font = Theme.SymbolFont14, Tag = "muted", AutoSize = true, Location = new Point(10, 30) };
-        var chevron = new Label { Text = expanded ? "▾" : "▸", Font = Theme.SymbolFont12, AutoSize = true, Location = new Point(38, 31), Cursor = Cursors.Hand, Tag = "muted" };
-        void Toggle() { if (!_expanded.Remove(scene)) _expanded.Add(scene); RebuildIfChanged(); }
-        chevron.Click += (_, _) => Toggle();
-        var title = new Label { Text = scene.Length > 0 ? scene : "(nom vide)", Font = Theme.CardTitleFont, AutoSize = true, Location = new Point(64, 12), Cursor = Cursors.Hand };
-        title.Click += (_, _) => Toggle();
-        header.Controls.AddRange(new Control[] { handle, chevron, title });
-
-        var x = 64 + TextRenderer.MeasureText(title.Text, Theme.CardTitleFont).Width + 8;
-        var info = (scene == snap.CurrentScene ? "● affichée en ce moment   " : "") + $"{sources.Count} source{(sources.Count > 1 ? "s" : "")}";
-        header.Controls.Add(new Label { Text = info, Tag = scene == snap.CurrentScene ? "accent" : "muted", AutoSize = true, Font = Theme.SmallFont, Location = new Point(x, 17) });
-
-        AddNicknameBlock(header, scene, W, chipsX: 64, chipsY: 50, boxY: 14, errorY: 50, unspeakable: bad.Contains(scene) || Normalizer.Normalize(scene).Length == 0, duplicate: false, short_: false);
+        var current = scene == snap.CurrentScene;
+        var header = new NameRow
+        {
+            Kind = NameRow.RowKind.Scene, Title = scene, Expanded = expanded, Height = 60, Width = 692,
+            Info = (current ? "● affichée en ce moment   " : "") + $"{sources.Count} source{(sources.Count > 1 ? "s" : "")}", InfoAccent = current,
+            Nicknames = NicknamesOf(scene).ToList(),
+            Note = bad.Contains(scene) || Normalizer.Normalize(scene).Length == 0 ? "⚠ Régis ne peut pas entendre ce nom : ajoute un surnom" : "Pas de surnom : dis simplement le nom",
+        };
+        Wire(header, scene);
+        _headers[scene] = (header, sources.Count);
+        header.ToggleClicked += () => ToggleGroup(scene, group, header);
+        WireDrag(header, group, order => { _settings.SceneOrder = order.ToList(); _save(); _signature = Signature(); }, on => group.Highlight = on);
         group.Stack.Controls.Add(header);
-        if (expanded) group.Stack.Controls.Add(BuildRows(scene, sources, audio: false, bad, group));
-
-        DragReorder.Attach(handle, group, order => { _settings.SceneOrder = order.ToList(); _save(); _signature = Signature(); },
-            on => { group.Highlight = on; });
+        if (expanded) group.Stack.Controls.Add(BuildRows(scene, sources, NameRow.RowKind.Source, bad));
         return group;
     }
 
     // Les lignes de sources d'une scène (ou des sons), dans l'ordre choisi par l'utilisateur.
-    private FlowLayoutPanel BuildRows(string orderKey, IReadOnlyList<string> names, bool audio, HashSet<string> bad, GroupCard group)
+    private FlowLayoutPanel BuildRows(string orderKey, IReadOnlyList<string> names, NameRow.RowKind kind, HashSet<string> bad)
     {
         var rows = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Tag = "rows", Margin = Padding.Empty, Width = 692 };
         var ordered = OrderHelper.Apply(names, _settings.SourceOrder.GetValueOrDefault(orderKey));
@@ -139,87 +179,48 @@ public class ScenesView : CardList
         foreach (var name in ordered)
         {
             var duplicate = !seen.Add(Normalizer.Normalize(name));
-            var row = BuildRow(name, audio, bad.Contains(name) || Normalizer.Normalize(name).Length == 0, duplicate);
-            row.Margin = Padding.Empty;
+            var unspeakable = bad.Contains(name) || Normalizer.Normalize(name).Length == 0;
+            var row = new NameRow
+            {
+                Kind = kind, Title = name, Height = 52, Width = 692, Margin = Padding.Empty, Separator = true, Tag = name,
+                Nicknames = NicknamesOf(name).ToList(),
+                Note = unspeakable ? "⚠ Régis ne peut pas entendre ce nom → surnom" : duplicate ? "⚠ Nom en double : Régis utilisera le premier" : null,
+            };
+            Wire(row, name);
+            if (kind == NameRow.RowKind.Audio)
+            {
+                row.MuteClicked += async () =>
+                {
+                    try { _muted[name] = await _o.ToggleMuteAsync(name); }
+                    catch (Exception) { /* OBS fermé : on ne change rien */ }
+                    UpdateMuteButtons();
+                };
+                if (!_muteRows.TryGetValue(name, out var list)) _muteRows[name] = list = new List<NameRow>();
+                list.Add(row);
+            }
+            WireDrag(row, row, order => { _settings.SourceOrder[orderKey] = order.ToList(); _save(); _signature = Signature(); }, on => row.Dragging = on);
             rows.Controls.Add(row);
-            var handle = row.Controls.OfType<Label>().First(l => l.Text == "⠿");
-            DragReorder.Attach(handle, row,
-                order => { _settings.SourceOrder[orderKey] = order.ToList(); _save(); _signature = Signature(); },
-                on => row.Dragging = on);
         }
         return rows;
     }
 
-    // [⠿] NOM   [pastilles]        [Muet] [ écris un surnom… ] [Ajouter]
-    private RowPanel BuildRow(string name, bool audio, bool unspeakable, bool duplicate)
+    // Les pastilles et le bouton « + Surnom » d'une ligne.
+    private void Wire(NameRow row, string name)
     {
-        const int W = 692;
-        var row = new RowPanel { Size = new Size(W, 64), Tag = name };
-        row.Controls.Add(new Label { Text = "⠿", Font = Theme.SymbolFont12, Tag = "muted", AutoSize = true, Location = new Point(34, 20) });
-        var nameWidth = audio ? 150 : 190;
-        row.Controls.Add(new Label { Text = name.Length > 0 ? name : "(nom vide)", AutoSize = false, AutoEllipsis = true, Size = new Size(nameWidth, 22), Location = new Point(62, 21), Font = Theme.BaseFont });
-        var chipsX = 62 + nameWidth + 6;
-        if (audio)
+        row.ChipRemoved += nick => { _settings.Nicknames.Remove(nick); _nicknamesChanged(); };
+        row.AddClicked += () => _editor.Open(this, row, name, text => ValidateNickname(text, name), text =>
         {
-            chipsX += 108 + 6; // le bouton muet se place juste après le nom
-            var mute = new Button { Size = new Size(108, 32), Location = new Point(62 + nameWidth + 6, 12) };
-            mute.Click += async (_, _) =>
-            {
-                mute.Enabled = false;
-                try { _muted[name] = await _o.ToggleMuteAsync(name); }
-                catch (Exception) { /* OBS fermé : on ne change rien */ }
-                finally { mute.Enabled = true; UpdateMuteButtons(); }
-            };
-            if (!_muteButtons.TryGetValue(name, out var list)) _muteButtons[name] = list = new List<Button>();
-            list.Add(mute);
-            row.Controls.Add(mute);
-        }
-        AddNicknameBlock(row, name, W, chipsX, chipsY: 17, boxY: 12, errorY: 42, unspeakable, duplicate, short_: true);
-        return row;
-    }
-
-    // Pastilles de surnoms + champ « Écris un surnom… » + bouton « Ajouter », pour un nom donné.
-    private void AddNicknameBlock(Control host, string name, int width, int chipsX, int chipsY, int boxY, int errorY,
-        bool unspeakable, bool duplicate, bool short_)
-    {
-        const int rightPart = 276;
-        var chips = new FlowLayoutPanel
-        {
-            Location = new Point(chipsX, chipsY), Size = new Size(Math.Max(60, width - chipsX - rightPart), 34), WrapContents = false,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Tag = "card",
-        };
-        var nicknames = NicknamesOf(name).ToList();
-        foreach (var nick in nicknames)
-        {
-            var chip = new Chip(nick);
-            chip.Removed += () => { _settings.Nicknames.Remove(nick); _nicknamesChanged(); };
-            chips.Controls.Add(chip);
-        }
-        if (nicknames.Count == 0)
-        {
-            Label? note = null;
-            if (unspeakable) note = new Label { Text = short_ ? "⚠ Régis ne peut pas entendre ce nom → surnom" : "⚠ Régis ne peut pas entendre ce nom : écris un surnom →", Tag = "danger", AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
-            else if (duplicate) note = new Label { Text = "⚠ Nom en double : Régis utilisera le premier", Tag = "danger", AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
-            else if (!short_) note = new Label { Text = "Pas de surnom : dis simplement le nom", Tag = "muted", AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
-            if (note != null) chips.Controls.Add(note);
-        }
-        host.Controls.Add(chips);
-
-        var box = new TextBox { Location = new Point(width - 266, boxY), Size = new Size(166, 28), PlaceholderText = "Écris un surnom…", Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        var add = new Button { Text = "Ajouter", Tag = "primary", Location = new Point(width - 94, boxY - 2), Size = new Size(80, 32), Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        var error = new Label { Tag = "danger", Font = Theme.SmallFont, Location = new Point(width - 266, errorY), Size = new Size(252, short_ ? 18 : 40), Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        void Add()
-        {
-            var text = box.Text.Trim();
-            var problem = text.Length == 0 ? "Écris d'abord un mot." : ValidateNickname(text, name);
-            if (problem != null) { error.Text = problem; return; }
             _settings.Nicknames[text] = name;
             _nicknamesChanged();
-        }
-        add.Click += (_, _) => Add();
-        box.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Add(); } };
-        box.TextChanged += (_, _) => error.Text = "";
-        host.Controls.AddRange(new Control[] { box, add, error });
+        });
+    }
+
+    private static void WireDrag(NameRow row, Control item, Action<IReadOnlyList<string>> dropped, Action<bool> visual)
+    {
+        DragReorder.Session? session = null;
+        row.DragStarted += () => { session = new DragReorder.Session(item, dropped); visual(true); };
+        row.DragMoved += () => session?.Move();
+        row.DragEnded += () => { session?.End(); session = null; visual(false); };
     }
 
     private IEnumerable<string> NicknamesOf(string realName) =>
@@ -238,20 +239,64 @@ public class ScenesView : CardList
         return null;
     }
 
-    // ---- boutons muet : mis à jour sur place, sans tout reconstruire ----
+    // ---- muet : mis à jour sur place, sans tout reconstruire ----
 
     public void UpdateMuteButtons()
     {
-        foreach (var (name, buttons) in _muteButtons)
+        foreach (var (name, rows) in _muteRows)
         {
             var muted = _muted.TryGetValue(name, out var m) && m;
-            foreach (var b in buttons)
-            {
-                b.Text = muted ? "🔇  Coupé" : "🔊  Actif";
-                b.BackColor = muted ? Theme.Danger : Theme.SurfaceAlt;
-                b.ForeColor = muted ? Color.White : Theme.Text;
-                b.FlatAppearance.MouseOverBackColor = muted ? ControlPaint.Light(Theme.Danger, 0.15f) : Theme.Border;
-            }
+            foreach (var r in rows) r.Muted = muted;
         }
+    }
+}
+
+/// <summary>Le champ « Écris un surnom… » partagé : une seule fenêtre flottante réutilisée pour toutes les lignes.</summary>
+public class NicknameEditor : Card
+{
+    private readonly TextBox _box = new() { PlaceholderText = "Écris un surnom…", Location = new Point(14, 14), Size = new Size(190, 28) };
+    private readonly Button _add = new() { Text = "Ajouter", Tag = "primary", Location = new Point(212, 12), Size = new Size(84, 32) };
+    private readonly Button _cancel = new() { Text = "✕", Location = new Point(302, 12), Size = new Size(34, 32) };
+    private readonly Label _error = new() { Tag = "danger", Font = Theme.SmallFont, Location = new Point(14, 48), Size = new Size(322, 18) };
+    private Func<string, string?>? _validate;
+    private Action<string>? _commit;
+
+    public NicknameEditor()
+    {
+        Size = new Size(350, 74); Visible = false; Highlight = true;
+        Controls.AddRange(new Control[] { _box, _add, _cancel, _error });
+        _add.Click += (_, _) => Submit();
+        _cancel.Click += (_, _) => Close();
+        _box.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Submit(); }
+            else if (e.KeyCode == Keys.Escape) { e.SuppressKeyPress = true; Close(); }
+        };
+        _box.TextChanged += (_, _) => _error.Text = "";
+    }
+
+    /// <summary>Ouvre l'éditeur à droite de la ligne donnée.</summary>
+    public void Open(Control host, NameRow row, string realName, Func<string, string?> validate, Action<string> commit)
+    {
+        _validate = validate; _commit = commit;
+        _box.Text = ""; _error.Text = "";
+        _box.PlaceholderText = $"Surnom pour « {realName} »";
+        var right = host.PointToClient(row.PointToScreen(new Point(row.Width - 10, 0))).X;
+        var top = host.PointToClient(row.PointToScreen(new Point(0, row.Height / 2))).Y - Height / 2;
+        Location = new Point(Math.Max(0, right - Width), Math.Clamp(top, 0, Math.Max(0, host.Height - Height)));
+        Theme.Apply(this);
+        Visible = true; BringToFront(); _box.Focus();
+    }
+
+    public void Close() { if (Visible) Visible = false; }
+
+    private void Submit()
+    {
+        var text = _box.Text.Trim();
+        var problem = text.Length == 0 ? "Écris d'abord un mot." : _validate?.Invoke(text);
+        if (problem != null) { _error.Text = problem; return; }
+        var commit = _commit;
+        Close();
+        commit?.Invoke(text);
     }
 }

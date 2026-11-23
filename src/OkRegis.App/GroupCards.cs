@@ -1,23 +1,5 @@
 namespace OkRegis.App;
 
-/// <summary>Une ligne (source) avec un fin trait de séparation en haut.</summary>
-public class RowPanel : Panel
-{
-    private bool _dragging;
-
-    /// <summary>Vrai pendant qu'on déplace la ligne (fond un peu différent).</summary>
-    public bool Dragging { get => _dragging; set { _dragging = value; BackColor = value ? Theme.SurfaceAlt : Theme.Surface; } }
-
-    public RowPanel() { DoubleBuffered = true; }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        using var pen = new Pen(Theme.Border);
-        e.Graphics.DrawLine(pen, 12, 0, Width - 12, 0);
-    }
-}
-
 /// <summary>Une carte de scène : un en-tête et, dessous, la liste de ses sources. La hauteur s'adapte au contenu.</summary>
 public class GroupCard : Card
 {
@@ -51,30 +33,28 @@ public class GroupCard : Card
     }
 }
 
-/// <summary>Glisser-déposer pour réordonner des éléments d'un même conteneur, en tirant une poignée.</summary>
+/// <summary>Glisser-déposer pour réordonner des éléments d'un même conteneur.</summary>
 public static class DragReorder
 {
-    /// <param name="handle">la poignée que l'on attrape</param>
-    /// <param name="item">l'élément déplacé (son Tag = son nom ; seuls les frères avec un Tag texte comptent)</param>
-    /// <param name="dropped">appelé au relâchement avec le nouvel ordre (les Tags dans l'ordre)</param>
-    /// <param name="dragging">appelé avec true au début et false à la fin (retour visuel)</param>
-    public static void Attach(Control handle, Control item, Action<IReadOnlyList<string>> dropped, Action<bool>? dragging = null)
+    /// <summary>
+    /// Un déplacement en cours. Move() à chaque mouvement de souris : l'élément se place en direct entre ses frères.
+    /// End() au relâchement : renvoie le nouvel ordre. Seuls les frères dont le Tag est un texte comptent.
+    /// </summary>
+    public sealed class Session
     {
-        var active = false;
-        handle.Cursor = Cursors.SizeAll;
-        handle.MouseDown += (_, e) =>
+        private readonly Control _item;
+        private readonly Action<IReadOnlyList<string>> _dropped;
+
+        public Session(Control item, Action<IReadOnlyList<string>> dropped) { _item = item; _dropped = dropped; }
+
+        public void Move()
         {
-            if (e.Button != MouseButtons.Left) return;
-            active = true; handle.Capture = true; dragging?.Invoke(true);
-        };
-        handle.MouseMove += (_, _) =>
-        {
-            if (!active || item.Parent is not { } parent) return;
+            if (_item.Parent is not { } parent) return;
             var y = parent.PointToClient(Cursor.Position).Y;
-            var siblings = parent.Controls.Cast<Control>().Where(c => c != item && c.Tag is string).ToList();
+            var siblings = parent.Controls.Cast<Control>().Where(c => c != _item && c.Tag is string).ToList();
             if (siblings.Count == 0) return;
             var target = siblings.FirstOrDefault(c => y < c.Top + c.Height / 2);
-            var current = parent.Controls.GetChildIndex(item);
+            var current = parent.Controls.GetChildIndex(_item);
             int newIndex;
             if (target != null)
             {
@@ -82,16 +62,15 @@ public static class DragReorder
                 newIndex = current < targetIndex ? targetIndex - 1 : targetIndex;
             }
             else newIndex = Math.Max(current, parent.Controls.GetChildIndex(siblings[^1]));
-            if (newIndex != current) parent.Controls.SetChildIndex(item, newIndex);
+            if (newIndex != current) parent.Controls.SetChildIndex(_item, newIndex);
             AutoScroll(parent);
-        };
-        handle.MouseUp += (_, _) =>
+        }
+
+        public void End()
         {
-            if (!active) return;
-            active = false; handle.Capture = false; dragging?.Invoke(false);
-            if (item.Parent is { } parent)
-                dropped(parent.Controls.Cast<Control>().Where(c => c.Tag is string).Select(c => (string)c.Tag!).ToList());
-        };
+            if (_item.Parent is { } parent)
+                _dropped(parent.Controls.Cast<Control>().Where(c => c.Tag is string).Select(c => (string)c.Tag!).ToList());
+        }
     }
 
     // Quand on tire près du bord haut/bas de la liste, elle défile.

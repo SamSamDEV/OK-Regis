@@ -59,7 +59,7 @@ public class MainForm : Form
 
         _history.Columns.Add("Heure", 80); _history.Columns.Add("Entendu", 300); _history.Columns.Add("Résultat", 380);
         _themeButton.Click += (_, _) => _toggleTheme();
-        _refreshButton.Click += (_, _) => { _scenes.Invalidate(); _o.Refresh(); RefreshView(); };
+        _refreshButton.Click += (_, _) => { _scenes.ForceRebuild(); _o.Refresh(); RefreshView(); };
 
         var tabs = new NavTabs();
         tabs.Add("Scènes et surnoms", _scenes);
@@ -134,7 +134,7 @@ public class MainForm : Form
         {
             Theme.Apply(this);
             UpdateThemeButton(); ApplyStateColors();
-            _scenes.Invalidate();  // les cartes se reconstruisent avec les nouvelles couleurs
+            _scenes.ForceRebuild();  // les cartes se reconstruisent avec les nouvelles couleurs
             BuildResponses();
             RefreshView();
         }
