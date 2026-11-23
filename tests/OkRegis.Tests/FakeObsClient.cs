@@ -11,6 +11,7 @@ public class FakeObsClient : IObsClient
     public ObsSnapshot Snapshot { get; set; } =
         new(new[] { "LoL" }, "LoL", new[] { "AFK" }, new[] { "Spotify" });
     public bool IsConnected { get; private set; }
+    public int ConnectFailures { get; set; }
 
     public event Action? Connected;
     public event Action? Disconnected;
@@ -22,7 +23,7 @@ public class FakeObsClient : IObsClient
     private Task Record(string call) { if (FailWith != null) throw FailWith; Calls.Add(call); return Task.CompletedTask; }
 
     public Task ConnectAsync(string host, int port, string password)
-    { Calls.Add($"connect {host}:{port}"); IsConnected = true; Connected?.Invoke(); return Task.CompletedTask; }
+    { if (ConnectFailures > 0) { ConnectFailures--; throw new InvalidOperationException("OBS pas prêt"); } Calls.Add($"connect {host}:{port}"); IsConnected = true; Connected?.Invoke(); return Task.CompletedTask; }
     public Task DisconnectAsync() { IsConnected = false; return Task.CompletedTask; }
     public Task<ObsSnapshot> GetSnapshotAsync() => Task.FromResult(Snapshot);
     public Task SetCurrentSceneAsync(string s) => Record($"scene {s}");
