@@ -2,6 +2,8 @@
 
 **English** · [Français](README.fr.md)
 
+*Vibe coded Voice Command OBS Manager.*
+
 > A **voice assistant for OBS** on Windows. Talk to it like a real control room — *"Ok Régis, switch to Gameplay"*, *"Régis, hide the chat"*, *"mute Discord"* — and it does it in OBS and answers with a voice.
 
 - 🎙️ **100 % local**: speech recognition runs on your PC (Vosk). No cloud, no account, no subscription.

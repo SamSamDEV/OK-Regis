@@ -2,6 +2,8 @@
 
 [English](README.md) · **Français**
 
+*Vibe coded Voice Command OBS Manager.*
+
 > Un **régisseur vocal pour OBS** sous Windows. Tu lui parles comme à une vraie régie — *« Ok Régis, mets Gameplay »*, *« Régis, cache le chat »*, *« coupe Discord »* — il l'exécute dans OBS et te répond avec une voix.
 
 - 🎙️ **100 % local** : la reconnaissance vocale tourne sur ton PC (Vosk). Pas de cloud, pas de compte, pas d'abonnement.
