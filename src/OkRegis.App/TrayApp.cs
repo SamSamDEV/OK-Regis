@@ -24,14 +24,14 @@ public class TrayApp : ApplicationContext
     private readonly SynchronizationContext _ui;
     private DateTime _lastSample = DateTime.MinValue;
 
-    public TrayApp(AppSettings settings, SettingsStore store, ISecretProtector secrets, Vocabulary vocab, string modelPath)
+    public TrayApp(AppSettings settings, SettingsStore store, ISecretProtector secrets, Vocabulary vocab, ModelHost modelHost)
     {
         // Le contexte WinForms n'existe qu'une fois une fenêtre créée : on s'assure de l'avoir pour revenir sur le thread de l'interface.
         if (SynchronizationContext.Current is not WindowsFormsSynchronizationContext)
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         _ui = SynchronizationContext.Current!;
         _settings = settings; _store = store; _secrets = secrets; _vocab = vocab;
-        _mic = new VoskMicListener(modelPath);
+        _mic = new VoskMicListener(modelHost);
         _orchestrator = new Orchestrator(settings, _obs, _mic, new WindowsResponder(settings), _watcher, vocab, secrets);
         _main = new MainForm(_orchestrator, _meter, AddNickname);
 

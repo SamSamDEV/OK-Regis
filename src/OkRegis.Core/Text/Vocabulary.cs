@@ -3,37 +3,72 @@ namespace OkRegis.Core.Text;
 /// <summary>Les mots que le modèle Vosk connaît. Vosk n'entend QUE ces mots.</summary>
 public class Vocabulary
 {
-    // clé = mot normalisé (sans accent), valeur = mot exact du modèle (avec accents)
-    private readonly Dictionary<string, string> _words = new();
+    // Accents possibles pour retrouver l'écriture exacte d'un mot du modèle ("regis" → "régis").
+    private static readonly Dictionary<char, string> Accents = new()
+    {
+        ['e'] = "eéèêë", ['a'] = "aàâ", ['i'] = "iîï", ['o'] = "oô", ['u'] = "uùû", ['c'] = "cç",
+    };
+    private const int MaxVariants = 500;
 
+    private readonly Func<string, string?> _lookup;
+    private readonly Dictionary<string, string?> _cache = new(); // mot normalisé → mot exact du modèle (null = inconnu)
+
+    /// <summary>Vocabulaire fixe (liste de mots exacts, avec accents).</summary>
     public Vocabulary(IEnumerable<string> words)
     {
+        var map = new Dictionary<string, string>();
         foreach (var w in words)
         {
             var key = Normalizer.Normalize(w);
-            if (key.Length > 0 && !_words.ContainsKey(key)) _words[key] = w;
+            if (key.Length > 0 && !map.ContainsKey(key)) map[key] = w;
         }
+        _lookup = key => map.GetValueOrDefault(key);
     }
 
-    /// <summary>Lit le fichier graph/words.txt du modèle Vosk (un mot par ligne, suivi d'un numéro).</summary>
-    public static Vocabulary FromWordsFile(string path) =>
-        new(File.ReadLines(path).Select(l => l.Split(' ', '\t')[0]).Where(w => w.Length > 0));
+    /// <summary>Vocabulaire interrogé mot par mot (ex. Model.FindWord de Vosk : le mot doit être écrit exactement).</summary>
+    public Vocabulary(Func<string, bool> exists)
+    {
+        _lookup = key => Variants(key).FirstOrDefault(exists);
+    }
 
-    public bool Contains(string word) => _words.ContainsKey(Normalizer.Normalize(word));
+    public bool Contains(string word) => Lookup(Normalizer.Normalize(word)) != null;
 
     /// <summary>Transforme une phrase normalisée en mots exacts du modèle (mots inconnus ignorés).</summary>
     public IReadOnlyList<string> Resolve(string spokenForm) =>
         spokenForm.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                  .Where(w => _words.ContainsKey(w)).Select(w => _words[w]).ToList();
+                  .Select(Lookup).Where(w => w != null).Select(w => w!).ToList();
 
     /// <summary>Vrai si au moins une variante parlée du nom est entièrement connue du modèle.</summary>
     public bool CanSpeak(string name, out string? spokenForm)
     {
         foreach (var form in SpokenForms.For(name))
         {
-            if (form.Split(' ').All(_words.ContainsKey)) { spokenForm = form; return true; }
+            if (form.Split(' ').All(w => Lookup(w) != null)) { spokenForm = form; return true; }
         }
         spokenForm = null;
         return false;
+    }
+
+    private string? Lookup(string key)
+    {
+        if (key.Length == 0) return null;
+        lock (_cache)
+        {
+            if (!_cache.TryGetValue(key, out var found)) _cache[key] = found = _lookup(key);
+            return found;
+        }
+    }
+
+    // Le mot tel quel, puis toutes ses écritures accentuées possibles (plafonné pour rester rapide).
+    private static IEnumerable<string> Variants(string key)
+    {
+        yield return key;
+        var options = key.Select(c => Accents.TryGetValue(c, out var a) ? a : c.ToString()).ToArray();
+        long count = 1;
+        foreach (var o in options) { count *= o.Length; if (count > MaxVariants) yield break; }
+        var results = new List<string> { "" };
+        foreach (var o in options)
+            results = results.SelectMany(prefix => o.Select(c => prefix + c)).ToList();
+        foreach (var r in results.Where(r => r != key)) yield return r;
     }
 }

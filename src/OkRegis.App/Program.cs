@@ -1,3 +1,4 @@
+using OkRegis.App.Speech;
 using OkRegis.Core.Settings;
 using OkRegis.Core.Text;
 
@@ -19,7 +20,8 @@ internal static class Program
 
         var modelPath = ModelManager.Find() ?? DownloadModel();
         if (modelPath is null) return;
-        var vocab = Vocabulary.FromWordsFile(ModelManager.WordsFile(modelPath));
+        using var modelHost = new ModelHost(modelPath);
+        var vocab = new Vocabulary(modelHost.WordExists); // le modèle léger n'a pas de liste de mots : on l'interroge
 
         if (!settings.FirstRunDone)
         {
@@ -29,7 +31,7 @@ internal static class Program
             Autostart.Set(settings.StartWithWindows);
         }
 
-        Application.Run(new TrayApp(settings, store, secrets, vocab, modelPath));
+        Application.Run(new TrayApp(settings, store, secrets, vocab, modelHost));
     }
 
     // Premier lancement : télécharge le modèle vocal avec une petite fenêtre de progression.

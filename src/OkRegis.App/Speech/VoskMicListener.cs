@@ -12,7 +12,7 @@ namespace OkRegis.App.Speech;
 /// </summary>
 public class VoskMicListener : IMicListener
 {
-    private readonly string _modelPath;
+    private readonly ModelHost _host;
     private readonly object _lock = new();
     private Model? _model;
     private VoskRecognizer? _recognizer;
@@ -24,9 +24,9 @@ public class VoskMicListener : IMicListener
 
     public bool IsRunning { get { lock (_lock) return _waveIn != null; } }
 
-    public VoskMicListener(string modelPath)
+    public VoskMicListener(ModelHost host)
     {
-        _modelPath = modelPath;
+        _host = host;
         Vosk.Vosk.SetLogLevel(-1); // pas de messages de debug de Vosk
     }
 
@@ -50,7 +50,7 @@ public class VoskMicListener : IMicListener
             if (_waveIn != null) return;
             try
             {
-                _model ??= new Model(_modelPath);
+                _model = _host.Acquire();
                 _recognizer = NewRecognizer();
                 _waveIn = new WaveIn
                 {
@@ -104,7 +104,7 @@ public class VoskMicListener : IMicListener
             _waveIn = null;
         }
         _recognizer?.Dispose(); _recognizer = null;
-        _model?.Dispose(); _model = null; // libère les ~40 Mo en veille
+        if (_model != null) { _model = null; _host.Release(); } // le modèle sera libéré s'il n'est plus utilisé
     }
 
     private void OnData(object? sender, WaveInEventArgs e)

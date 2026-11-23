@@ -40,6 +40,19 @@ public class SpokenFormsTests
         Assert.False(Vocab("c", "s", "deux", "trois").CanSpeak(nom, out _));
     }
 
+    // Le modèle léger n'a pas de words.txt : on l'interroge mot par mot (FindWord), accents compris.
+    [Fact]
+    public void Vocabulaire_interroge_par_fonction_retrouve_les_accents()
+    {
+        var connus = new HashSet<string> { "régis", "mets", "arrête", "c", "s", "deux" };
+        var v = new Vocabulary(connus.Contains);
+        Assert.True(v.CanSpeak("Regis", out var forme));
+        Assert.Equal(new[] { "régis" }, v.Resolve(forme!));
+        Assert.True(v.CanSpeak("CS2", out _));
+        Assert.Equal(new[] { "arrête" }, v.Resolve("arrete"));
+        Assert.False(v.CanSpeak("Texte (GDI+)", out _));
+    }
+
     [Fact]
     public void Les_accents_du_modele_sont_retrouves()
     {

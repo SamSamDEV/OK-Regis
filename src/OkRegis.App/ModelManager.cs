@@ -26,11 +26,9 @@ public static class ModelManager
         return null;
     }
 
-    // Un modèle à moitié décompressé n'est pas accepté : il faut le vocabulaire ET le modèle acoustique.
+    // Un modèle à moitié décompressé n'est pas accepté : il faut le modèle acoustique ET le graphe de mots.
     private static bool IsComplete(string dir) =>
-        File.Exists(WordsFile(dir)) && Directory.Exists(Path.Combine(dir, "am")) && Directory.Exists(Path.Combine(dir, "conf"));
-
-    public static string WordsFile(string modelPath) => Path.Combine(modelPath, "graph", "words.txt");
+        File.Exists(Path.Combine(dir, "am", "final.mdl")) && File.Exists(Path.Combine(dir, "graph", "HCLr.fst")) && File.Exists(Path.Combine(dir, "graph", "Gr.fst"));
 
     /// <summary>Télécharge et décompresse le modèle (~40 Mo). progress = 0..1.</summary>
     public static async Task<string> DownloadAsync(IProgress<double> progress)
