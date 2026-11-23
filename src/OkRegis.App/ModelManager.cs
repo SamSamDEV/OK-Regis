@@ -1,27 +1,27 @@
 using System.IO.Compression;
+using OkRegis.Core.Languages;
+using OkRegis.Core.Localization;
+using OkRegis.Core.Settings;
 
 namespace OkRegis.App;
 
 /// <summary>
-/// Trouve (ou télécharge au premier lancement) le modèle Vosk français léger.
-/// Dossiers cherchés : "models" à côté de l'exe, puis %AppData%\OK-Regis\models.
+/// Trouve (ou télécharge) le modèle vocal Vosk léger de la langue choisie.
+/// Dossiers cherchés : "models" à côté de l'exe (l'installateur y met les trois langues), puis %AppData%\OK-Regis\models.
 /// </summary>
 public static class ModelManager
 {
-    private const string ModelName = "vosk-model-small-fr-0.22";
-    private const string Url = "https://alphacephei.com/vosk/models/" + ModelName + ".zip";
-
     private static string UserModelsDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OK-Regis", "models");
 
-    /// <summary>Chemin du modèle s'il est déjà là, sinon null.</summary>
-    public static string? Find()
+    /// <summary>Chemin du modèle de cette langue s'il est déjà là (et complet), sinon null.</summary>
+    public static string? Find(Language language)
     {
+        var folder = LanguagePack.For(language).ModelFolder;
         foreach (var root in new[] { Path.Combine(AppContext.BaseDirectory, "models"), UserModelsDir })
         {
-            if (!Directory.Exists(root)) continue;
-            var hit = Directory.GetDirectories(root, "vosk-model*").FirstOrDefault(IsComplete);
-            if (hit != null) return hit;
+            var candidate = Path.Combine(root, folder);
+            if (Directory.Exists(candidate) && IsComplete(candidate)) return candidate;
         }
         return null;
     }
@@ -30,13 +30,14 @@ public static class ModelManager
     private static bool IsComplete(string dir) =>
         File.Exists(Path.Combine(dir, "am", "final.mdl")) && File.Exists(Path.Combine(dir, "graph", "HCLr.fst")) && File.Exists(Path.Combine(dir, "graph", "Gr.fst"));
 
-    /// <summary>Télécharge et décompresse le modèle (~40 Mo). progress = 0..1.</summary>
-    public static async Task<string> DownloadAsync(IProgress<double> progress)
+    /// <summary>Télécharge et décompresse le modèle de cette langue (~40 Mo). progress = 0..1.</summary>
+    public static async Task<string> DownloadAsync(Language language, IProgress<double> progress)
     {
+        var pack = LanguagePack.For(language);
         Directory.CreateDirectory(UserModelsDir);
-        var zipPath = Path.Combine(Path.GetTempPath(), ModelName + ".zip");
+        var zipPath = Path.Combine(Path.GetTempPath(), pack.ModelFolder + ".zip");
         using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) })
-        using (var response = await http.GetAsync(Url, HttpCompletionOption.ResponseHeadersRead))
+        using (var response = await http.GetAsync(pack.ModelUrl, HttpCompletionOption.ResponseHeadersRead))
         {
             response.EnsureSuccessStatusCode();
             var total = response.Content.Headers.ContentLength ?? 42_000_000;
@@ -55,13 +56,13 @@ public static class ModelManager
         var temp = Path.Combine(UserModelsDir, "_partiel");
         if (Directory.Exists(temp)) Directory.Delete(temp, true);
         ZipFile.ExtractToDirectory(zipPath, temp);
-        var extracted = Path.Combine(temp, ModelName);
-        var final = Path.Combine(UserModelsDir, ModelName);
+        var extracted = Path.Combine(temp, pack.ModelFolder);
+        var final = Path.Combine(UserModelsDir, pack.ModelFolder);
         if (Directory.Exists(final)) Directory.Delete(final, true);
         Directory.Move(extracted, final);
         Directory.Delete(temp, true);
         File.Delete(zipPath);
         progress.Report(1);
-        return Find() ?? throw new InvalidOperationException("Modèle introuvable après décompression.");
+        return Find(language) ?? throw new InvalidOperationException(Loc.T("Modèle introuvable après décompression."));
     }
 }

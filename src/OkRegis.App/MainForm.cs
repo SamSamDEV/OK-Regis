@@ -2,6 +2,7 @@ using OkRegis.Core.Commands;
 using OkRegis.Core.Orchestration;
 using OkRegis.Core.Settings;
 using OkRegis.Core.Text;
+using OkRegis.Core.Localization;
 
 namespace OkRegis.App;
 
@@ -11,15 +12,15 @@ public class MainForm : Form
     // Les actions pour lesquelles Régis répond (clé = clé dans AppSettings.Responses).
     private static readonly (string Key, string Title)[] ActionRows =
     {
-        ("scene", "Quand je change de scène"), ("show", "Quand j'affiche une source"), ("hide", "Quand je masque une source"),
-        ("mute", "Quand je coupe un son"), ("unmute", "Quand je rétablis un son"),
-        ("volumeUp", "Quand je monte le volume"), ("volumeDown", "Quand je baisse le volume"),
-        ("recordStart", "Quand je lance l'enregistrement"), ("recordStop", "Quand j'arrête l'enregistrement"),
-        ("recordPause", "Quand je mets l'enregistrement en pause"),
-        ("streamStart", "Quand je lance le stream"), ("streamStop", "Quand j'arrête le stream"),
-        ("failed", "Quand ça n'a pas marché"),
+        ("scene", Loc.T("Quand je change de scène")), ("show", Loc.T("Quand j'affiche une source")), ("hide", Loc.T("Quand je masque une source")),
+        ("mute", Loc.T("Quand je coupe un son")), ("unmute", Loc.T("Quand je rétablis un son")),
+        ("volumeUp", Loc.T("Quand je monte le volume")), ("volumeDown", Loc.T("Quand je baisse le volume")),
+        ("recordStart", Loc.T("Quand je lance l'enregistrement")), ("recordStop", Loc.T("Quand j'arrête l'enregistrement")),
+        ("recordPause", Loc.T("Quand je mets l'enregistrement en pause")),
+        ("streamStart", Loc.T("Quand je lance le stream")), ("streamStop", Loc.T("Quand j'arrête le stream")),
+        ("failed", Loc.T("Quand ça n'a pas marché")),
     };
-    private static readonly string[] ModeLabels = { "Voix de Régis (ou mes sons)", "Juste un bip", "Silence" };
+    private static readonly string[] ModeLabels = { Loc.T("Voix de Régis (ou mes sons)"), Loc.T("Juste un bip"), Loc.T("Silence") };
 
     private readonly Orchestrator _o;
     private readonly AppSettings _settings;
@@ -46,9 +47,9 @@ public class MainForm : Form
 
     /// <summary>Levé quand l'utilisateur ferme la fenêtre : l'appli la détruit pour libérer la mémoire.</summary>
     public event Action? HiddenToTray;
-    public Button PauseButton { get; } = new() { Text = "Mettre en pause", AutoSize = true };
-    public Button SettingsButton { get; } = new() { Text = "Réglages", AutoSize = true };
-    private readonly Button _refreshButton = new() { Text = "↻  Actualiser", AutoSize = true };
+    public Button PauseButton { get; } = new() { Text = Loc.T("Mettre en pause"), AutoSize = true };
+    public Button SettingsButton { get; } = new() { Text = Loc.T("Réglages"), AutoSize = true };
+    private readonly Button _refreshButton = new() { Text = Loc.T("↻  Actualiser"), AutoSize = true };
 
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
@@ -62,15 +63,15 @@ public class MainForm : Form
         Text = "OK Régis"; ClientSize = new Size(840, 620); MinimumSize = new Size(720, 520); StartPosition = FormStartPosition.CenterScreen;
         Icon = (Icon)TrayIcons.For(RegisState.Listening).Clone(); // une copie : détruire la fenêtre ne doit pas détruire l'icône partagée
 
-        _history.Columns.Add("Heure", 80); _history.Columns.Add("Entendu", 300); _history.Columns.Add("Résultat", 380);
+        _history.Columns.Add(Loc.T("Heure"), 80); _history.Columns.Add(Loc.T("Entendu"), 300); _history.Columns.Add(Loc.T("Résultat"), 380);
         _themeButton.Click += (_, _) => _toggleTheme();
         _refreshButton.Click += (_, _) => { _scenes.ForceRebuild(); _sounds.ForceRebuild(); _o.Refresh(); RefreshView(); };
 
         var tabs = new NavTabs();
-        tabs.Add("Scènes", _scenes);
-        tabs.Add("Sons", _sounds);
-        tabs.Add("Réponses de Régis", _responses);
-        tabs.Add("Historique", _history);
+        tabs.Add(Loc.T("Scènes"), _scenes);
+        tabs.Add(Loc.T("Sons"), _sounds);
+        tabs.Add(Loc.T("Réponses de Régis"), _responses);
+        tabs.Add(Loc.T("Historique"), _history);
 
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 30 };
         footer.Controls.Add(_resources);
@@ -112,10 +113,10 @@ public class MainForm : Form
 
     public static string StateText(RegisState s) => s switch
     {
-        RegisState.Idle => "En veille (OBS fermé)",
-        RegisState.Connecting => "Connexion à OBS…",
-        RegisState.Listening => "À l'écoute",
-        _ => "En pause",
+        RegisState.Idle => Loc.T("En veille (OBS fermé)"),
+        RegisState.Connecting => Loc.T("Connexion à OBS…"),
+        RegisState.Listening => Loc.T("À l'écoute"),
+        _ => Loc.T("En pause"),
     };
 
     private void ApplyStateColors() => _dot.ForeColor = _o.State switch
@@ -129,7 +130,7 @@ public class MainForm : Form
     private void UpdateThemeButton()
     {
         _themeButton.Text = Theme.Dark ? "☀" : "☾";
-        _tip.SetToolTip(_themeButton, Theme.Dark ? "Passer au thème clair" : "Passer au thème sombre");
+        _tip.SetToolTip(_themeButton, Theme.Dark ? Loc.T("Passer au thème clair") : Loc.T("Passer au thème sombre"));
     }
 
     /// <summary>Réapplique le thème (clair/sombre) après un changement.</summary>
@@ -164,8 +165,8 @@ public class MainForm : Form
         if (!Visible) return;
         _state.Text = StateText(_o.State);
         ApplyStateColors();
-        _lastHeard.Text = "Dernière phrase entendue : " + (_o.LastHeard.Length > 0 ? _o.LastHeard : "—");
-        PauseButton.Text = _o.State == RegisState.Paused ? "Reprendre l'écoute" : "Mettre en pause";
+        _lastHeard.Text = Loc.T("Dernière phrase entendue : ") + (_o.LastHeard.Length > 0 ? _o.LastHeard : "—");
+        PauseButton.Text = _o.State == RegisState.Paused ? Loc.T("Reprendre l'écoute") : Loc.T("Mettre en pause");
 
         _history.BeginUpdate(); _history.Items.Clear();
         foreach (var h in _o.History.AsEnumerable().Reverse().Take(100))
@@ -187,7 +188,7 @@ public class MainForm : Form
 
         // Carte du haut : comment Régis répond.
         var top = new Card { Size = new Size(700, 118) };
-        top.Controls.Add(new Label { Text = "Comment Régis répond ?", Font = Theme.CardTitleFont, AutoSize = true, Location = new Point(18, 12) });
+        top.Controls.Add(new Label { Text = Loc.T("Comment Régis répond ?"), Font = Theme.CardTitleFont, AutoSize = true, Location = new Point(18, 12) });
         var mode = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(18, 44), Size = new Size(260, 28) };
         mode.Items.AddRange(ModeLabels);
         mode.SelectedIndex = _settings.VoiceMode switch { ResponseMode.Beep => 1, ResponseMode.Silent => 2, _ => 0 };
@@ -199,7 +200,7 @@ public class MainForm : Form
         top.Controls.Add(mode);
         top.Controls.Add(new Label
         {
-            Text = "Écris la phrase que Régis dit ({scène} et {source} sont remplacés par le nom). Si tu choisis un fichier son, il passe avant la voix.",
+            Text = Loc.T("Écris la phrase que Régis dit ({scène} et {source} sont remplacés par le nom). Si tu choisis un fichier son, il passe avant la voix."),
             Tag = "muted", Font = Theme.SmallFont, AutoSize = false, Location = new Point(18, 76), Size = new Size(664, 34), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         });
         items.Add(top);
@@ -217,20 +218,22 @@ public class MainForm : Form
 
         var phrase = new TextBox
         {
-            Location = new Point(18, 44), Size = new Size(W - 36, 28), PlaceholderText = "Phrase que Régis dit…",
+            Location = new Point(18, 44), Size = new Size(W - 36, 28), PlaceholderText = Loc.T("Phrase que Régis dit…"),
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-            Text = _settings.Responses.TryGetValue(key, out var list) ? string.Join(" | ", list) : "",
+            Text = string.Join(" | ", new ResponsePicker(_settings).PhrasesFor(key)), // la phrase personnalisée, sinon celle par défaut de la langue
         };
         void Commit()
         {
             var phrases = phrase.Text.Split('|').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
-            if (phrases.Count > 0) _settings.Responses[key] = phrases; else _settings.Responses.Remove(key);
+            var defaults = OkRegis.Core.Languages.LanguagePack.For(_settings.Language).DefaultResponses.GetValueOrDefault(key) ?? Array.Empty<string>();
+            // Identique à la phrase par défaut (ou vide) : on ne garde rien, la langue choisie fournit la phrase.
+            if (phrases.Count == 0 || phrases.SequenceEqual(defaults)) _settings.Responses.Remove(key); else _settings.Responses[key] = phrases;
             _save();
         }
         phrase.Leave += (_, _) => Commit();
         phrase.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Commit(); } };
 
-        var listen = new Button { Text = "▶  Écouter", Location = new Point(18, 78), Size = new Size(110, 32) };
+        var listen = new Button { Text = Loc.T("▶  Écouter"), Location = new Point(18, 78), Size = new Size(110, 32) };
         listen.Click += async (_, _) =>
         {
             Commit();
@@ -238,10 +241,10 @@ public class MainForm : Form
         };
 
         var hasFile = _settings.CustomResponseFiles.TryGetValue(key, out var file) && file.Length > 0;
-        var choose = new Button { Text = hasFile ? "Changer le son…" : "Choisir un son…", Location = new Point(136, 78), Size = new Size(150, 32) };
+        var choose = new Button { Text = hasFile ? Loc.T("Changer le son…") : Loc.T("Choisir un son…"), Location = new Point(136, 78), Size = new Size(150, 32) };
         choose.Click += (_, _) =>
         {
-            using var dialog = new OpenFileDialog { Title = "Choisir un son", Filter = "Sons (*.wav;*.mp3)|*.wav;*.mp3" };
+            using var dialog = new OpenFileDialog { Title = Loc.T("Choisir un son"), Filter = Loc.T("Sons (*.wav;*.mp3)|*.wav;*.mp3") };
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             _settings.CustomResponseFiles[key] = dialog.FileName;
             _save(); BuildResponses();
@@ -249,7 +252,7 @@ public class MainForm : Form
 
         var fileLabel = new Label
         {
-            Text = hasFile ? "♪  " + Path.GetFileName(file) : "Aucun son : Régis utilise sa voix",
+            Text = hasFile ? "♪  " + Path.GetFileName(file) : Loc.T("Aucun son : Régis utilise sa voix"),
             Tag = hasFile ? "accent" : "muted", AutoSize = false, Location = new Point(296, 84), Size = new Size(W - 296 - 60, 22),
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
@@ -258,7 +261,7 @@ public class MainForm : Form
         if (hasFile)
         {
             var remove = new Button { Text = "✕", Location = new Point(W - 50, 78), Size = new Size(34, 32), Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            _tip.SetToolTip(remove, "Retirer ce son");
+            _tip.SetToolTip(remove, Loc.T("Retirer ce son"));
             remove.Click += (_, _) => { _settings.CustomResponseFiles.Remove(key); _save(); BuildResponses(); };
             card.Controls.Add(remove);
         }

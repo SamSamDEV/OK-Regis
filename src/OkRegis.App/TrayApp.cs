@@ -1,8 +1,10 @@
 using OkRegis.App.Obs;
 using OkRegis.App.Speech;
+using OkRegis.Core.Languages;
 using OkRegis.Core.Orchestration;
 using OkRegis.Core.Settings;
 using OkRegis.Core.Text;
+using OkRegis.Core.Localization;
 
 namespace OkRegis.App;
 
@@ -23,7 +25,7 @@ public class TrayApp : ApplicationContext
     private readonly VoskMicListener _mic;
     private readonly ResourceMeter _meter = new();
     private readonly NotifyIcon _icon = new();
-    private readonly ToolStripMenuItem _pauseItem = new("Mettre l'écoute en pause");
+    private readonly ToolStripMenuItem _pauseItem = new(Loc.T("Mettre l'écoute en pause"));
     private readonly SynchronizationContext _ui;
     private MainForm? _main;   // null tant que la fenêtre n'est pas ouverte
     private DateTime _lastSample = DateTime.MinValue;
@@ -40,11 +42,11 @@ public class TrayApp : ApplicationContext
         _orchestrator = new Orchestrator(settings, _obs, _mic, _responder, _watcher, vocab, secrets);
 
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Ouvrir la fenêtre", null, (_, _) => ShowMain());
+        menu.Items.Add(Loc.T("Ouvrir la fenêtre"), null, (_, _) => ShowMain());
         _pauseItem.Click += (_, _) => TogglePause();
         menu.Items.Add(_pauseItem);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Quitter", null, (_, _) => Quit());
+        menu.Items.Add(Loc.T("Quitter"), null, (_, _) => Quit());
 
         _icon.Icon = TrayIcons.For(RegisState.Idle);
         _icon.ContextMenuStrip = menu;
@@ -62,7 +64,7 @@ public class TrayApp : ApplicationContext
     private void OnChanged()
     {
         _icon.Icon = TrayIcons.For(_orchestrator.State);
-        _pauseItem.Text = _orchestrator.State == RegisState.Paused ? "Reprendre l'écoute" : "Mettre l'écoute en pause";
+        _pauseItem.Text = _orchestrator.State == RegisState.Paused ? Loc.T("Reprendre l'écoute") : Loc.T("Mettre l'écoute en pause");
         _main?.RefreshView();
         UpdateTooltip();
         if (_main is not { Visible: true }) MemoryTrimmer.Schedule(8_000); // au repos : on allège (le minuteur est repoussé à chaque activité)
@@ -103,8 +105,24 @@ public class TrayApp : ApplicationContext
 
     private void OpenSettings()
     {
+        var oldLanguage = _settings.Language;
         using var form = new SettingsForm(_settings, _secrets, _vocab, firstRun: false);
         if (form.ShowDialog(_main is { Visible: true } ? _main : null) != DialogResult.OK) return;
+
+        // Nouvelle langue : le modèle vocal change, donc l'appli redémarre.
+        if (_settings.Language != oldLanguage)
+        {
+            // Si le nom de l'assistant était celui par défaut, on prend celui de la nouvelle langue.
+            if (Normalizer.Normalize(_settings.AssistantName) == Normalizer.Normalize(LanguagePack.For(oldLanguage).DefaultAssistantName))
+                _settings.AssistantName = LanguagePack.For(_settings.Language).DefaultAssistantName;
+            _store.Save(_settings);
+            Autostart.Set(_settings.StartWithWindows);
+            Loc.Current = _settings.Language;
+            MessageBox.Show(Loc.T("L'appli va redémarrer pour changer de langue."), "OK Régis");
+            Program.Restart();
+            Quit();
+            return;
+        }
         _store.Save(_settings);
         Autostart.Set(_settings.StartWithWindows);
         var wasDark = Theme.Dark;

@@ -2,6 +2,7 @@ using OkRegis.Core.Commands;
 using OkRegis.Core.Orchestration;
 using OkRegis.Core.Settings;
 using OkRegis.Core.Text;
+using OkRegis.Core.Localization;
 
 namespace OkRegis.App;
 
@@ -60,7 +61,7 @@ public class ScenesView : Panel
         foreach (var (scene, (header, count)) in _headers)
         {
             var isCurrent = scene == current;
-            var info = (isCurrent ? "● affichée en ce moment   " : "") + $"{count} source{(count > 1 ? "s" : "")}";
+            var info = (isCurrent ? Loc.T("● affichée en ce moment   ") : "") + Loc.T(count > 1 ? "{0} sources" : "{0} source", count);
             if (header.Info == info) continue;
             header.Info = info; header.InfoAccent = isCurrent; header.Invalidate();
         }
@@ -113,8 +114,8 @@ public class ScenesView : Panel
         if (snap is null)
         {
             items.Add(MessageCard(_audioOnly
-                ? "Ouvre OBS : tes sons apparaîtront ici.\nTu pourras couper le micro ou Discord en un clic."
-                : "Ouvre OBS : tes scènes et leurs sources apparaîtront ici.\nTu pourras leur donner des surnoms."));
+                ? Loc.T("Ouvre OBS : tes sons apparaîtront ici.\nTu pourras couper le micro ou Discord en un clic.")
+                : Loc.T("Ouvre OBS : tes scènes et leurs sources apparaîtront ici.\nTu pourras leur donner des surnoms.")));
         }
         else
         {
@@ -125,7 +126,7 @@ public class ScenesView : Panel
             var bad = new HashSet<string>(_o.Grammar?.Unspeakable ?? Array.Empty<string>());
             if (_audioOnly)
             {
-                items.Add(snap.AudioSources.Count > 0 ? BuildAudioGroup(snap, bad) : MessageCard("Aucune source audio trouvée dans OBS."));
+                items.Add(snap.AudioSources.Count > 0 ? BuildAudioGroup(snap, bad) : MessageCard(Loc.T("Aucune source audio trouvée dans OBS.")));
             }
             else
             {
@@ -150,8 +151,8 @@ public class ScenesView : Panel
     {
         var group = new GroupCard { Size = new Size(700, 80) };
         var header = new Panel { Size = new Size(692, 58), Tag = "card" };
-        header.Controls.Add(new Label { Text = "Sons (audio)", Font = Theme.CardTitleFont, AutoSize = true, Location = new Point(18, 10) });
-        header.Controls.Add(new Label { Text = "Coupe ou rétablis un son d'un clic. À la voix : « coupe le micro », « mute discord »…", Tag = "muted", Font = Theme.SmallFont, AutoSize = true, Location = new Point(18, 36) });
+        header.Controls.Add(new Label { Text = Loc.T("Sons (audio)"), Font = Theme.CardTitleFont, AutoSize = true, Location = new Point(18, 10) });
+        header.Controls.Add(new Label { Text = Loc.T("Coupe ou rétablis un son d'un clic. À la voix : « coupe le micro », « mute discord »…"), Tag = "muted", Font = Theme.SmallFont, AutoSize = true, Location = new Point(18, 36) });
         group.Stack.Controls.Add(header);
         group.Stack.Controls.Add(BuildRows(AudioKey, snap.AudioSources, NameRow.RowKind.Audio, bad));
         return group;
@@ -167,9 +168,9 @@ public class ScenesView : Panel
         var header = new NameRow
         {
             Kind = NameRow.RowKind.Scene, Title = scene, Expanded = expanded, Height = 60, Width = 692,
-            Info = (current ? "● affichée en ce moment   " : "") + $"{sources.Count} source{(sources.Count > 1 ? "s" : "")}", InfoAccent = current,
+            Info = (current ? Loc.T("● affichée en ce moment   ") : "") + Loc.T(sources.Count > 1 ? "{0} sources" : "{0} source", sources.Count), InfoAccent = current,
             Nicknames = NicknamesOf(scene).ToList(),
-            Note = bad.Contains(scene) || Normalizer.Normalize(scene).Length == 0 ? "⚠ Régis ne peut pas entendre ce nom : ajoute un surnom" : "Pas de surnom : dis simplement le nom",
+            Note = bad.Contains(scene) || Normalizer.Normalize(scene).Length == 0 ? Loc.T("⚠ Régis ne peut pas entendre ce nom : ajoute un surnom") : Loc.T("Pas de surnom : dis simplement le nom"),
         };
         Wire(header, scene);
         _headers[scene] = (header, sources.Count);
@@ -194,7 +195,7 @@ public class ScenesView : Panel
             {
                 Kind = kind, Title = name, Height = 52, Width = 692, Margin = Padding.Empty, Separator = true, Tag = name,
                 Nicknames = NicknamesOf(name).ToList(),
-                Note = unspeakable ? "⚠ Régis ne peut pas entendre ce nom → surnom" : duplicate ? "⚠ Nom en double : Régis utilisera le premier" : null,
+                Note = unspeakable ? Loc.T("⚠ Régis ne peut pas entendre ce nom → surnom") : duplicate ? Loc.T("⚠ Nom en double : Régis utilisera le premier") : null,
             };
             Wire(row, name);
             if (kind == NameRow.RowKind.Audio)
@@ -238,14 +239,14 @@ public class ScenesView : Panel
 
     private string? ValidateNickname(string text, string realName)
     {
-        if (!_vocab.CanSpeak(text, out _)) return $"Régis ne connaît pas « {text} ». Essaie un mot plus courant.";
+        if (!_vocab.CanSpeak(text, out _)) return Loc.T("Régis ne connaît pas « {0} ». Essaie un mot plus courant.", text);
         var key = Normalizer.Normalize(text);
         var snap = _o.Snapshot;
         var all = (snap?.Scenes ?? Array.Empty<string>()).Concat(snap?.AudioSources ?? Array.Empty<string>())
             .Concat(snap?.SourcesByScene?.Values.SelectMany(v => v) ?? Array.Empty<string>());
-        if (all.Any(n => Normalizer.Normalize(n) == key && n != realName)) return "Ce mot est déjà le nom d'une autre scène ou source.";
+        if (all.Any(n => Normalizer.Normalize(n) == key && n != realName)) return Loc.T("Ce mot est déjà le nom d'une autre scène ou source.");
         if (_settings.Nicknames.TryGetValue(text, out var other) && Normalizer.Normalize(other) != Normalizer.Normalize(realName))
-            return $"Ce surnom est déjà utilisé pour « {other} ».";
+            return Loc.T("Ce surnom est déjà utilisé pour « {0} ».", other);
         return null;
     }
 
@@ -264,7 +265,7 @@ public class ScenesView : Panel
 /// <summary>Le champ « Écris un surnom… » partagé : une seule fenêtre flottante réutilisée pour toutes les lignes.</summary>
 public class NicknameEditor : Card
 {
-    private readonly TextBox _box = new() { PlaceholderText = "Écris un surnom…", Location = new Point(14, 14), Size = new Size(190, 28) };
+    private readonly TextBox _box = new() { PlaceholderText = Loc.T("Écris un surnom…"), Location = new Point(14, 14), Size = new Size(190, 28) };
     private readonly Button _add = new() { Text = "Ajouter", Tag = "primary", Location = new Point(212, 12), Size = new Size(84, 32) };
     private readonly Button _cancel = new() { Text = "✕", Location = new Point(302, 12), Size = new Size(34, 32) };
     private readonly Label _error = new() { Tag = "danger", Font = Theme.SmallFont, Location = new Point(14, 48), Size = new Size(322, 18) };
@@ -290,7 +291,7 @@ public class NicknameEditor : Card
     {
         _validate = validate; _commit = commit;
         _box.Text = ""; _error.Text = "";
-        _box.PlaceholderText = $"Surnom pour « {realName} »";
+        _box.PlaceholderText = Loc.T("Surnom pour « {0} »", realName);
         var right = host.PointToClient(row.PointToScreen(new Point(row.Width - 10, 0))).X;
         var top = host.PointToClient(row.PointToScreen(new Point(0, row.Height / 2))).Y - Height / 2;
         Location = new Point(Math.Max(0, right - Width), Math.Clamp(top, 0, Math.Max(0, host.Height - Height)));
@@ -303,7 +304,7 @@ public class NicknameEditor : Card
     private void Submit()
     {
         var text = _box.Text.Trim();
-        var problem = text.Length == 0 ? "Écris d'abord un mot." : _validate?.Invoke(text);
+        var problem = text.Length == 0 ? Loc.T("Écris d'abord un mot.") : _validate?.Invoke(text);
         if (problem != null) { _error.Text = problem; return; }
         var commit = _commit;
         Close();

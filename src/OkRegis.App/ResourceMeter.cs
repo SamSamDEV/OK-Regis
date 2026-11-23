@@ -25,5 +25,5 @@ public class ResourceMeter
         WorkingSetMb = _process.WorkingSet64 / (1024 * 1024);
     }
 
-    public string Text => $"CPU {CpuPercent:0.0} % · {WorkingSetMb} Mo";
+    public string Text => $"CPU {CpuPercent:0.0} % · {WorkingSetMb} {OkRegis.Core.Localization.Loc.T("Mo")}";
 }

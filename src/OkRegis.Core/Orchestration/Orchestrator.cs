@@ -3,6 +3,7 @@ using OkRegis.Core.Obs;
 using OkRegis.Core.Settings;
 using OkRegis.Core.Speech;
 using OkRegis.Core.Text;
+using OkRegis.Core.Localization;
 
 namespace OkRegis.Core.Orchestration;
 
@@ -178,7 +179,7 @@ public class Orchestrator
         if (_obsRunning == false) SetStateUnlessPaused(RegisState.Idle);
     }
 
-    // Ouvre le micro et passe en "À l'écoute" (à appeler avec _stateLock pris).
+    // Ouvre le micro et passe en Loc.T("À l'écoute") (à appeler avec _stateLock pris).
     // Renvoie false si le micro (ou le modèle vocal) n'a pas pu s'ouvrir : on reste en veille, sans faire semblant d'écouter.
     private bool StartListeningLocked()
     {
@@ -187,7 +188,7 @@ public class Orchestrator
         return _mic.IsRunning;
     }
 
-    private const string MicFailedText = "Micro ou modèle vocal indisponible : Régis n'écoute pas";
+    private static string MicFailedText => Loc.T("Micro ou modèle vocal indisponible : Régis n'écoute pas");
 
     // Change l'état sauf si l'utilisateur a mis Régis en pause. Renvoie false si la pause a gagné.
     private bool SetStateUnlessPaused(RegisState state)
@@ -216,7 +217,7 @@ public class Orchestrator
 
         if (heard.Confidence < _settings.MinConfidence || Snapshot is null)
         {
-            AddHistory(heard.Text, "Pas assez sûr, ignoré", false);
+            AddHistory(heard.Text, Loc.T("Pas assez sûr, ignoré"), false);
             return;
         }
         var parsed = new CommandParser(_settings).Parse(heard.Text, Snapshot);
@@ -224,16 +225,16 @@ public class Orchestrator
         {
             AddHistory(heard.Text, parsed.Status switch
             {
-                ParseStatus.NoWakeWord => "Pas pour moi",
-                ParseStatus.UnknownVerb => "Commande inconnue",
-                ParseStatus.UnknownTarget => "Scène ou source inconnue",
-                _ => "Commande désactivée",
+                ParseStatus.NoWakeWord => Loc.T("Pas pour moi"),
+                ParseStatus.UnknownVerb => Loc.T("Commande inconnue"),
+                ParseStatus.UnknownTarget => Loc.T("Scène ou source inconnue"),
+                _ => Loc.T("Commande désactivée"),
             }, false);
             return;
         }
 
         var result = await new CommandExecutor(_obs, _settings).ExecuteAsync(parsed.Command!, Snapshot);
-        AddHistory(heard.Text, result.Success ? $"{parsed.Command!.Kind} {result.Name}".Trim() : "Échec dans OBS", result.Success);
+        AddHistory(heard.Text, result.Success ? $"{parsed.Command!.Kind} {result.Name}".Trim() : Loc.T("Échec dans OBS"), result.Success);
         var sentence = new ResponsePicker(_settings).Pick(result.ActionKey, result.Name);
         await _voice.RespondAsync(result.ActionKey, sentence);
     }
@@ -245,7 +246,7 @@ public class Orchestrator
     {
         await _gate.WaitAsync();
         try { await action(); }
-        catch (Exception ex) { AddHistory("", "Erreur interne : " + ex.Message, false); }
+        catch (Exception ex) { AddHistory("", Loc.T("Erreur interne : ") + ex.Message, false); }
         finally { _gate.Release(); }
     }
 

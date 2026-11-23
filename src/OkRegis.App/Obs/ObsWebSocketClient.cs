@@ -1,6 +1,7 @@
 using OBSWebsocketDotNet;
 using OkRegis.Core.Commands;
 using OkRegis.Core.Obs;
+using OkRegis.Core.Localization;
 
 namespace OkRegis.App.Obs;
 
@@ -50,15 +51,15 @@ public class ObsWebSocketClient : IObsClient, IDisposable
         EventHandler<OBSWebsocketDotNet.Communication.ObsDisconnectionInfo> onFailed =
             (_, info) => done.TrySetException(new InvalidOperationException(
                 string.IsNullOrWhiteSpace(info.DisconnectReason)
-                    ? $"Connexion à OBS impossible (code {info.ObsCloseCode}). Vérifie qu'OBS est ouvert, que le serveur WebSocket est activé, et le port / mot de passe."
-                    : "Connexion à OBS refusée : " + info.DisconnectReason));
+                    ? Loc.T("Connexion à OBS impossible (code {0}). Vérifie qu'OBS est ouvert, que le serveur WebSocket est activé, et le port / mot de passe.", info.ObsCloseCode)
+                    : Loc.T("Connexion à OBS refusée : ") + info.DisconnectReason));
         _obs.Connected += onConnected;
         _obs.Disconnected += onFailed;
         try
         {
             _obs.ConnectAsync($"ws://{host}:{port}", password);
             if (await Task.WhenAny(done.Task, Task.Delay(TimeSpan.FromSeconds(8))) != done.Task)
-                throw new TimeoutException("OBS ne répond pas");
+                throw new TimeoutException(Loc.T("OBS ne répond pas"));
             await done.Task;
             _wasConnected = true;
             Connected?.Invoke();
@@ -137,7 +138,7 @@ public class ObsWebSocketClient : IObsClient, IDisposable
     public Task SetSourceVisibleAsync(string scene, string source, bool visible) => Task.Run(() =>
     {
         if (!TrySetEnabled(scene, false, source, visible, Groups(), new HashSet<string>()))
-            throw new InvalidOperationException($"Source introuvable : {source}");
+            throw new InvalidOperationException(Loc.T("Source introuvable : {0}", source));
     });
 
     // Cherche la source dans la scène, puis dans ses groupes, et change sa visibilité.

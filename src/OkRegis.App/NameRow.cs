@@ -1,3 +1,5 @@
+using OkRegis.Core.Localization;
+
 namespace OkRegis.App;
 
 /// <summary>
@@ -109,16 +111,16 @@ public class NameRow : Control
         if (scene)
         {
             TextRenderer.DrawText(g, Expanded ? "▾" : "▸", Theme.SymbolFont12, new Rectangle(34, 0, 24, Height), Theme.Muted, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding);
-            TextRenderer.DrawText(g, Title.Length > 0 ? Title : "(nom vide)", Theme.CardTitleFont, _title, Theme.Text, flags);
+            TextRenderer.DrawText(g, Title.Length > 0 ? Title : Loc.T("(nom vide)"), Theme.CardTitleFont, _title, Theme.Text, flags);
             if (Info.Length > 0)
                 TextRenderer.DrawText(g, Info, Theme.SmallFont, new Rectangle(_title.Right + 8, 0, Math.Max(0, _chipsArea.X - _title.Right - 12), Height), InfoAccent ? Theme.Accent : Theme.Muted, flags);
         }
         else
         {
-            TextRenderer.DrawText(g, Title.Length > 0 ? Title : "(nom vide)", Theme.BaseFont, _title, Theme.Text, flags);
+            TextRenderer.DrawText(g, Title.Length > 0 ? Title : Loc.T("(nom vide)"), Theme.BaseFont, _title, Theme.Text, flags);
         }
 
-        if (Kind == RowKind.Audio) DrawPill(g, _mute, _muted ? "🔇  Coupé" : "🔊  Actif", _muted ? Theme.Danger : Theme.SurfaceAlt, _muted ? Color.White : Theme.Text, _hover == HitKind.Mute);
+        if (Kind == RowKind.Audio) DrawPill(g, _mute, _muted ? Loc.T("🔇  Coupé") : Loc.T("🔊  Actif"), _muted ? Theme.Danger : Theme.SurfaceAlt, _muted ? Color.White : Theme.Text, _hover == HitKind.Mute);
 
         for (var i = 0; i < _chips.Count; i++)
         {
@@ -131,7 +133,7 @@ public class NameRow : Control
         if (Nicknames.Count == 0 && !string.IsNullOrEmpty(Note))
             TextRenderer.DrawText(g, Note, Theme.SmallFont, _chipsArea, Note.StartsWith("⚠") ? Theme.Danger : Theme.Muted, flags);
 
-        DrawPill(g, _plus, "+  Surnom", _hover == HitKind.Plus ? ControlPaint.Light(Theme.Accent, 0.15f) : Theme.Accent, Theme.AccentText, false);
+        DrawPill(g, _plus, Loc.T("+  Surnom"), _hover == HitKind.Plus ? ControlPaint.Light(Theme.Accent, 0.15f) : Theme.Accent, Theme.AccentText, false);
     }
 
     private static void DrawPill(Graphics g, Rectangle rect, string text, Color back, Color fore, bool hover)
