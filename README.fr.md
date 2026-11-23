@@ -71,6 +71,8 @@ Mesuré sur une vraie configuration, OBS ouvert, avec beaucoup de scènes :
 | Processeur en écoute | **≈ 0,3 %** d'un cœur |
 | Processeur quand OBS est fermé | ≈ 0 % (le micro et le modèle vocal sont libérés) |
 
+La fenêtre elle-même est dessinée sur **une seule surface** (pas de contrôle par ligne), avec des **animations à 60 images/s** — défilement adouci, dépliage des scènes, déplacement des cartes, changement de thème — même avec des centaines de sources. Les animations ne tournent que pendant qu'elles durent ; au repos, rien ne s'exécute.
+
 Comment : le moteur vocal ne travaille que pendant que tu parles (petite détection de voix), la fenêtre n'existe pas en mémoire tant que tu ne l'ouvres pas, la mémoire inutilisée est rendue à Windows après quelques secondes d'inactivité, et la grammaire de reconnaissance ne contient que les phrases valides pour tes scènes actuelles (ce qui la rend aussi plus précise).
 Le modèle vocal réserve environ 390 Mo de mémoire *engagée* ; Windows ne garde en RAM que ce dont il a réellement besoin.
 

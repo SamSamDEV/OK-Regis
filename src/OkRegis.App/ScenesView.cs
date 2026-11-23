@@ -1,15 +1,15 @@
 using OkRegis.Core.Commands;
+using OkRegis.Core.Localization;
 using OkRegis.Core.Orchestration;
 using OkRegis.Core.Settings;
 using OkRegis.Core.Text;
-using OkRegis.Core.Localization;
 
 namespace OkRegis.App;
 
 /// <summary>
-/// Les scènes comme dans OBS : une carte par scène avec ses sources dessous, plus une carte « Sons » (muet en un clic).
-/// Chaque ligne affiche ses surnoms en pastilles et un bouton « + Surnom » (un seul champ de saisie partagé s'ouvre au clic).
-/// Les scènes et les sources se réordonnent à la souris (l'ordre est celui de l'appli : OBS n'est pas modifié).
+/// Les scènes comme dans OBS (une carte par scène avec ses sources dessous), ou la liste des sons (muet en un clic).
+/// Le dessin et les animations sont dans SceneCanvas (une seule surface, fluide) ; ici on fabrique son contenu à partir
+/// d'OBS et on branche les actions : surnoms, muet, ordre, dépliage.
 /// </summary>
 public class ScenesView : Panel
 {
@@ -22,12 +22,12 @@ public class ScenesView : Panel
     private readonly Action _save;             // enregistre seulement
     private readonly bool _audioOnly;          // vrai : cette vue n'affiche que les sons ; faux : que les scènes
 
-    private readonly CardList _list = new() { Dock = DockStyle.Fill };
+    private readonly SceneCanvas _canvas = new() { Dock = DockStyle.Fill };
     private readonly NicknameEditor _editor = new();
     private readonly HashSet<string> _expanded = new();   // scènes dépliées
     private readonly Dictionary<string, bool> _muted = new();
-    private readonly Dictionary<string, List<NameRow>> _muteRows = new();
-    private readonly Dictionary<string, (NameRow Header, int Count)> _headers = new();
+    private readonly Dictionary<string, RowData> _audioRows = new();
+    private readonly Dictionary<string, (RowData Header, int Count)> _headers = new();
     private bool _expandInitialized;
     private string _signature = "";
 
@@ -35,15 +35,31 @@ public class ScenesView : Panel
     {
         _audioOnly = audioOnly;
         _o = o; _settings = settings; _vocab = vocab; _nicknamesChanged = nicknamesChanged; _save = save;
-        Controls.Add(_editor); Controls.Add(_list);   // l'éditeur est au-dessus de la liste
-        _list.Scrolled += () => _editor.Close();
+        Controls.Add(_editor); Controls.Add(_canvas);   // l'éditeur de surnom flotte au-dessus de la surface
         _editor.BringToFront();
+
+        _canvas.Scrolled += () => _editor.Close();
+        _canvas.ChipRemoved += (_, nick) => { _settings.Nicknames.Remove(nick); _nicknamesChanged(); };
+        _canvas.AddClicked += (row, bounds) => _editor.Open(this, bounds, row.Name, text => ValidateNickname(text, row.Name), text =>
+        {
+            _settings.Nicknames[text] = row.Name;
+            _nicknamesChanged();
+        });
+        _canvas.MuteClicked += async row =>
+        {
+            try { _muted[row.Name] = await _o.ToggleMuteAsync(row.Name); }
+            catch (Exception) { /* OBS fermé : on ne change rien */ }
+            UpdateMuteButtons();
+        };
+        _canvas.ExpandChanged += (scene, expanded) => { if (expanded) _expanded.Add(scene); else _expanded.Remove(scene); };
+        _canvas.SceneOrderChanged += order => { _settings.SceneOrder = order.ToList(); _save(); _signature = Signature(); };
+        _canvas.RowOrderChanged += (key, order) => { _settings.SourceOrder[key] = order.ToList(); _save(); _signature = Signature(); };
     }
 
-    /// <summary>La liste qui défile (utile pour les tests d'affichage).</summary>
-    public CardList List => _list;
+    /// <summary>Le thème a changé : tout se redessine (les couleurs sont lues à chaque dessin).</summary>
+    public void ThemeChanged() => _canvas.Redraw();
 
-    /// <summary>Force la reconstruction au prochain RebuildIfChanged (ex. après un changement de thème).</summary>
+    /// <summary>Force la reconstruction au prochain RebuildIfChanged.</summary>
     public void ForceRebuild() => _signature = "";
 
     // On ne reconstruit que si le contenu change (sinon on perdrait la saisie et l'appli ramerait).
@@ -54,52 +70,30 @@ public class ScenesView : Panel
         UpdateCurrentScene(); // changer de scène dans OBS ne reconstruit rien : on met juste à jour les en-têtes
     }
 
+    private string Signature()
+    {
+        var snap = _o.Snapshot;
+        if (snap is null) return "none";
+        return string.Join("|", snap.Scenes) + "#" + string.Join("|", snap.AudioSources) + "#"
+            + string.Join("|", snap.SourcesByScene?.Select(p => p.Key + ":" + string.Join(",", p.Value)) ?? Array.Empty<string>()) + "#"
+            + string.Join("|", _settings.Nicknames.Select(n => n.Key + "=" + n.Value)) + "#"
+            + string.Join("|", _o.Grammar?.Unspeakable ?? Array.Empty<string>()) + "#"
+            + string.Join("|", _settings.SceneOrder) + "#" + string.Join("|", _settings.SourceOrder.Select(p => p.Key + ":" + string.Join(",", p.Value)));
+    }
+
     // Met à jour « ● affichée en ce moment » sur place.
     private void UpdateCurrentScene()
     {
         var current = _o.Snapshot?.CurrentScene;
+        var changed = false;
         foreach (var (scene, (header, count)) in _headers)
         {
             var isCurrent = scene == current;
             var info = (isCurrent ? Loc.T("● affichée en ce moment   ") : "") + Loc.T(count > 1 ? "{0} sources" : "{0} source", count);
             if (header.Info == info) continue;
-            header.Info = info; header.InfoAccent = isCurrent; header.Invalidate();
+            header.Info = info; header.InfoAccent = isCurrent; changed = true;
         }
-    }
-
-    // Déplier / replier une scène : seules ses lignes sont créées ou supprimées.
-    private void ToggleGroup(string scene, GroupCard group, NameRow header)
-    {
-        var snap = _o.Snapshot;
-        if (snap is null) return;
-        var existing = group.Stack.Controls.OfType<FlowLayoutPanel>().FirstOrDefault(c => c.Tag is "rows");
-        if (_expanded.Remove(scene))
-        {
-            header.Expanded = false;
-            if (existing != null) { group.Stack.Controls.Remove(existing); existing.Dispose(); }
-        }
-        else
-        {
-            _expanded.Add(scene); header.Expanded = true;
-            var sources = snap.SourcesByScene != null && snap.SourcesByScene.TryGetValue(scene, out var s) ? s : Array.Empty<string>();
-            var bad = new HashSet<string>(_o.Grammar?.Unspeakable ?? Array.Empty<string>());
-            var rows = BuildRows(scene, sources, NameRow.RowKind.Source, bad);
-            group.Stack.Controls.Add(rows);
-            Theme.Apply(rows);
-        }
-        header.Invalidate();
-        group.FitChildren();
-        _signature = Signature();
-    }
-
-    private string Signature()
-    {
-        var snap = _o.Snapshot;
-        if (snap is null) return "none" + Theme.Dark;
-        return string.Join("|", snap.Scenes) + "#" + string.Join("|", snap.AudioSources) + "#"
-            + string.Join("|", snap.SourcesByScene?.Select(p => p.Key + ":" + string.Join(",", p.Value)) ?? Array.Empty<string>()) + "#"
-            + string.Join("|", _settings.Nicknames.Select(n => n.Key + "=" + n.Value)) + "#"
-            + string.Join("|", _o.Grammar?.Unspeakable ?? Array.Empty<string>()) + "#" + Theme.Dark;
+        if (changed) _canvas.Redraw();
     }
 
     // ---- construction ----
@@ -108,14 +102,20 @@ public class ScenesView : Panel
     {
         _editor.Close();
         var snap = _o.Snapshot;
-        var items = new List<Control>();
-        _muteRows.Clear(); _headers.Clear();
+        var groups = new List<GroupItem>();
+        _audioRows.Clear(); _headers.Clear();
 
         if (snap is null)
         {
-            items.Add(MessageCard(_audioOnly
-                ? Loc.T("Ouvre OBS : tes sons apparaîtront ici.\nTu pourras couper le micro ou Discord en un clic.")
-                : Loc.T("Ouvre OBS : tes scènes et leurs sources apparaîtront ici.\nTu pourras leur donner des surnoms.")));
+            // pas d'OBS : un simple message
+            groups.Add(new GroupItem
+            {
+                Key = "message", Audio = true,
+                Title = Loc.T(_audioOnly ? "Sons (audio)" : "Scènes"),
+                Hint = Loc.T(_audioOnly
+                    ? "Ouvre OBS : tes sons apparaîtront ici.\nTu pourras couper le micro ou Discord en un clic."
+                    : "Ouvre OBS : tes scènes et leurs sources apparaîtront ici.\nTu pourras leur donner des surnoms.").Replace("\n", "  "),
+            });
         }
         else
         {
@@ -126,112 +126,69 @@ public class ScenesView : Panel
             var bad = new HashSet<string>(_o.Grammar?.Unspeakable ?? Array.Empty<string>());
             if (_audioOnly)
             {
-                items.Add(snap.AudioSources.Count > 0 ? BuildAudioGroup(snap, bad) : MessageCard(Loc.T("Aucune source audio trouvée dans OBS.")));
+                groups.Add(snap.AudioSources.Count > 0
+                    ? BuildAudioGroup(snap, bad)
+                    : new GroupItem { Key = "message", Audio = true, Title = Loc.T("Sons (audio)"), Hint = Loc.T("Aucune source audio trouvée dans OBS.") });
             }
             else
             {
-                foreach (var scene in OrderHelper.Apply(snap.Scenes, _settings.SceneOrder)) items.Add(BuildSceneGroup(scene, snap, bad));
+                foreach (var scene in OrderHelper.Apply(snap.Scenes, _settings.SceneOrder)) groups.Add(BuildSceneGroup(scene, snap, bad));
             }
         }
 
-        _list.SetItems(items);
-        Theme.Apply(_list);
-        foreach (var group in items.OfType<GroupCard>()) group.FitChildren();
+        _canvas.SetModel(groups);
         UpdateMuteButtons();
     }
 
-    private static Control MessageCard(string text)
+    private GroupItem BuildAudioGroup(ObsSnapshot snap, HashSet<string> bad)
     {
-        var card = new Card { Size = new Size(700, 100) };
-        card.Controls.Add(new Label { Text = text, Tag = "muted", AutoSize = false, Location = new Point(20, 16), Size = new Size(660, 70), Font = Theme.BaseFont });
-        return card;
-    }
-
-    private GroupCard BuildAudioGroup(ObsSnapshot snap, HashSet<string> bad)
-    {
-        var group = new GroupCard { Size = new Size(700, 80) };
-        var header = new Panel { Size = new Size(692, 58), Tag = "card" };
-        header.Controls.Add(new Label { Text = Loc.T("Sons (audio)"), Font = Theme.CardTitleFont, AutoSize = true, Location = new Point(18, 10) });
-        header.Controls.Add(new Label { Text = Loc.T("Coupe ou rétablis un son d'un clic. À la voix : « coupe le micro », « mute discord »…"), Tag = "muted", Font = Theme.SmallFont, AutoSize = true, Location = new Point(18, 36) });
-        group.Stack.Controls.Add(header);
-        group.Stack.Controls.Add(BuildRows(AudioKey, snap.AudioSources, NameRow.RowKind.Audio, bad));
+        var group = new GroupItem
+        {
+            Key = AudioKey, Audio = true, Title = Loc.T("Sons (audio)"),
+            Hint = Loc.T("Coupe ou rétablis un son d'un clic. À la voix : « coupe le micro », « mute discord »…"),
+        };
+        AddRows(group, AudioKey, snap.AudioSources, RowKind.Audio, bad);
         return group;
     }
 
-    private GroupCard BuildSceneGroup(string scene, ObsSnapshot snap, HashSet<string> bad)
+    private GroupItem BuildSceneGroup(string scene, ObsSnapshot snap, HashSet<string> bad)
     {
-        var group = new GroupCard { Tag = scene, Size = new Size(700, 100) };
         var expanded = _expanded.Contains(scene);
         var sources = snap.SourcesByScene != null && snap.SourcesByScene.TryGetValue(scene, out var s) ? s : Array.Empty<string>();
-
         var current = scene == snap.CurrentScene;
-        var header = new NameRow
+        var header = new RowData
         {
-            Kind = NameRow.RowKind.Scene, Title = scene, Expanded = expanded, Height = 60, Width = 692,
-            Info = (current ? Loc.T("● affichée en ce moment   ") : "") + Loc.T(sources.Count > 1 ? "{0} sources" : "{0} source", sources.Count), InfoAccent = current,
+            Kind = RowKind.Scene, Name = scene, Expanded = expanded,
+            Info = (current ? Loc.T("● affichée en ce moment   ") : "") + Loc.T(sources.Count > 1 ? "{0} sources" : "{0} source", sources.Count),
+            InfoAccent = current,
             Nicknames = NicknamesOf(scene).ToList(),
-            Note = bad.Contains(scene) || Normalizer.Normalize(scene).Length == 0 ? Loc.T("⚠ Régis ne peut pas entendre ce nom : ajoute un surnom") : Loc.T("Pas de surnom : dis simplement le nom"),
+            Note = bad.Contains(scene) || Normalizer.Normalize(scene).Length == 0
+                ? Loc.T("⚠ Régis ne peut pas entendre ce nom : ajoute un surnom") : Loc.T("Pas de surnom : dis simplement le nom"),
         };
-        Wire(header, scene);
         _headers[scene] = (header, sources.Count);
-        header.ToggleClicked += () => ToggleGroup(scene, group, header);
-        WireDrag(header, group, order => { _settings.SceneOrder = order.ToList(); _save(); _signature = Signature(); }, on => group.Highlight = on);
-        group.Stack.Controls.Add(header);
-        if (expanded) group.Stack.Controls.Add(BuildRows(scene, sources, NameRow.RowKind.Source, bad));
+        var group = new GroupItem { Key = scene, Header = header, Expanded = expanded };
+        AddRows(group, scene, sources, RowKind.Source, bad);
         return group;
     }
 
     // Les lignes de sources d'une scène (ou des sons), dans l'ordre choisi par l'utilisateur.
-    private FlowLayoutPanel BuildRows(string orderKey, IReadOnlyList<string> names, NameRow.RowKind kind, HashSet<string> bad)
+    private void AddRows(GroupItem group, string orderKey, IReadOnlyList<string> names, RowKind kind, HashSet<string> bad)
     {
-        var rows = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Tag = "rows", Margin = Padding.Empty, Width = 692 };
-        var ordered = OrderHelper.Apply(names, _settings.SourceOrder.GetValueOrDefault(orderKey));
         var seen = new HashSet<string>();
-        foreach (var name in ordered)
+        foreach (var name in OrderHelper.Apply(names, _settings.SourceOrder.GetValueOrDefault(orderKey)))
         {
             var duplicate = !seen.Add(Normalizer.Normalize(name));
             var unspeakable = bad.Contains(name) || Normalizer.Normalize(name).Length == 0;
-            var row = new NameRow
+            var row = new RowData
             {
-                Kind = kind, Title = name, Height = 52, Width = 692, Margin = Padding.Empty, Separator = true, Tag = name,
+                Kind = kind, Name = name, Separator = true,
                 Nicknames = NicknamesOf(name).ToList(),
-                Note = unspeakable ? Loc.T("⚠ Régis ne peut pas entendre ce nom → surnom") : duplicate ? Loc.T("⚠ Nom en double : Régis utilisera le premier") : null,
+                Note = unspeakable ? Loc.T("⚠ Régis ne peut pas entendre ce nom → surnom")
+                     : duplicate ? Loc.T("⚠ Nom en double : Régis utilisera le premier") : null,
             };
-            Wire(row, name);
-            if (kind == NameRow.RowKind.Audio)
-            {
-                row.MuteClicked += async () =>
-                {
-                    try { _muted[name] = await _o.ToggleMuteAsync(name); }
-                    catch (Exception) { /* OBS fermé : on ne change rien */ }
-                    UpdateMuteButtons();
-                };
-                if (!_muteRows.TryGetValue(name, out var list)) _muteRows[name] = list = new List<NameRow>();
-                list.Add(row);
-            }
-            WireDrag(row, row, order => { _settings.SourceOrder[orderKey] = order.ToList(); _save(); _signature = Signature(); }, on => row.Dragging = on);
-            rows.Controls.Add(row);
+            if (kind == RowKind.Audio) _audioRows[name] = row;
+            group.Rows.Add(new RowItem { Data = row });
         }
-        return rows;
-    }
-
-    // Les pastilles et le bouton « + Surnom » d'une ligne.
-    private void Wire(NameRow row, string name)
-    {
-        row.ChipRemoved += nick => { _settings.Nicknames.Remove(nick); _nicknamesChanged(); };
-        row.AddClicked += () => _editor.Open(this, row, name, text => ValidateNickname(text, name), text =>
-        {
-            _settings.Nicknames[text] = name;
-            _nicknamesChanged();
-        });
-    }
-
-    private static void WireDrag(NameRow row, Control item, Action<IReadOnlyList<string>> dropped, Action<bool> visual)
-    {
-        DragReorder.Session? session = null;
-        row.DragStarted += () => { session = new DragReorder.Session(item, dropped); visual(true); };
-        row.DragMoved += () => session?.Move();
-        row.DragEnded += () => { session?.End(); session = null; visual(false); };
     }
 
     private IEnumerable<string> NicknamesOf(string realName) =>
@@ -254,11 +211,8 @@ public class ScenesView : Panel
 
     public void UpdateMuteButtons()
     {
-        foreach (var (name, rows) in _muteRows)
-        {
-            var muted = _muted.TryGetValue(name, out var m) && m;
-            foreach (var r in rows) r.Muted = muted;
-        }
+        foreach (var (name, row) in _audioRows) row.Muted = _muted.TryGetValue(name, out var m) && m;
+        _canvas.Redraw();
     }
 }
 
@@ -266,7 +220,7 @@ public class ScenesView : Panel
 public class NicknameEditor : Card
 {
     private readonly TextBox _box = new() { PlaceholderText = Loc.T("Écris un surnom…"), Location = new Point(14, 14), Size = new Size(190, 28) };
-    private readonly Button _add = new() { Text = "Ajouter", Tag = "primary", Location = new Point(212, 12), Size = new Size(84, 32) };
+    private readonly Button _add = new() { Text = Loc.T("Ajouter"), Tag = "primary", Location = new Point(212, 12), Size = new Size(84, 32) };
     private readonly Button _cancel = new() { Text = "✕", Location = new Point(302, 12), Size = new Size(34, 32) };
     private readonly Label _error = new() { Tag = "danger", Font = Theme.SmallFont, Location = new Point(14, 48), Size = new Size(322, 18) };
     private Func<string, string?>? _validate;
@@ -286,15 +240,14 @@ public class NicknameEditor : Card
         _box.TextChanged += (_, _) => _error.Text = "";
     }
 
-    /// <summary>Ouvre l'éditeur à droite de la ligne donnée.</summary>
-    public void Open(Control host, NameRow row, string realName, Func<string, string?> validate, Action<string> commit)
+    /// <summary>Ouvre l'éditeur à droite de la ligne donnée (rectangle en coordonnées de l'hôte).</summary>
+    public void Open(Control host, Rectangle rowBounds, string realName, Func<string, string?> validate, Action<string> commit)
     {
         _validate = validate; _commit = commit;
         _box.Text = ""; _error.Text = "";
         _box.PlaceholderText = Loc.T("Surnom pour « {0} »", realName);
-        var right = host.PointToClient(row.PointToScreen(new Point(row.Width - 10, 0))).X;
-        var top = host.PointToClient(row.PointToScreen(new Point(0, row.Height / 2))).Y - Height / 2;
-        Location = new Point(Math.Max(0, right - Width), Math.Clamp(top, 0, Math.Max(0, host.Height - Height)));
+        var top = rowBounds.Y + rowBounds.Height / 2 - Height / 2;
+        Location = new Point(Math.Max(0, rowBounds.Right - 10 - Width), Math.Clamp(top, 0, Math.Max(0, host.Height - Height)));
         Theme.Apply(this);
         Visible = true; BringToFront(); _box.Focus();
     }

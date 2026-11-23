@@ -1,7 +1,7 @@
 # Construit l'installateur : installer\Output\OKRegis-Setup-<version>.exe
 # Prérequis : SDK .NET 10 et Inno Setup 6 (winget install JRSoftware.InnoSetup).
-# Utilisation : powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 [-Version 1.0.1]
-param([string]$Version = "1.0.1")
+# Utilisation : powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 [-Version 1.0.2]
+param([string]$Version = "1.0.2")
 
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot

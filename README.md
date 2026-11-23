@@ -71,6 +71,8 @@ Measured on a real setup with OBS open and a large scene collection:
 | CPU while listening | **≈ 0.3 %** of one core |
 | CPU when OBS is closed | ≈ 0 % (the microphone and the voice model are released) |
 
+The window itself is drawn on a **single surface** (no control per row), with **60 FPS animations** — smooth scrolling, expanding scenes, dragging cards, switching theme — even with hundreds of sources. Animations only run while they last; at rest nothing runs.
+
 How: the speech engine only runs while you talk (a small voice-activity gate), the window does not exist in memory until you open it, unused memory is handed back to Windows after a few seconds of inactivity, and the recognition grammar only contains the valid sentences for your current scenes (which is also what makes it accurate).
 The voice model itself reserves ~390 MB of *committed* memory; Windows only keeps the parts it actually needs in RAM.
 

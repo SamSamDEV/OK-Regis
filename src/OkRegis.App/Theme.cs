@@ -89,13 +89,6 @@ public static class Theme
             case CheckBox or RadioButton: c.ForeColor = Text; c.BackColor = BackFor(c); break;
             case NavTabs nav: nav.BackColor = Bg; nav.ApplyTheme(); break;
             case Card card: card.BackColor = (card.Tag as string) == "flat" ? Surface : Bg; card.Invalidate(); break;
-            case Chip chip: chip.BackColor = Surface; chip.Invalidate(); break;
-            case NameRow row: row.BackColor = row.Dragging ? SurfaceAlt : Surface; row.Invalidate(); break;
-            case CardList list:
-                list.BackColor = Bg;
-                if (list.IsHandleCreated) SetWindowTheme(list.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null); // barre de défilement sombre
-                else list.HandleCreated += (_, _) => SetWindowTheme(list.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null);
-                break;
             case Panel or TableLayoutPanel or FlowLayoutPanel or UserControl:
                 c.BackColor = (c.Tag as string) is "card" or "rows" ? Surface : Bg;
                 break;

@@ -114,6 +114,7 @@ public static class Loc
         ["Ce mot est déjà le nom d'une autre scène ou source."] = ("This word is already the name of another scene or source.", "Esta palabra ya es el nombre de otra escena o fuente."),
         ["Ce surnom est déjà utilisé pour « {0} »."] = ("This nickname is already used for “{0}”.", "Este apodo ya se usa para «{0}»."),
         ["Écris un surnom…"] = ("Type a nickname…", "Escribe un apodo…"),
+        ["Ajouter"] = ("Add", "Añadir"),
         ["Surnom pour « {0} »"] = ("Nickname for “{0}”", "Apodo para «{0}»"),
         ["Écris d'abord un mot."] = ("Type a word first.", "Escribe primero una palabra."),
         ["(nom vide)"] = ("(empty name)", "(nombre vacío)"),
