@@ -19,6 +19,8 @@ public interface IObsClient
     Task SetCurrentSceneAsync(string scene);
     Task SetSourceVisibleAsync(string scene, string source, bool visible);
     Task SetMutedAsync(string audioSource, bool muted);
+    /// <summary>Inverse le muet d'une source audio ; renvoie le nouvel état (vrai = coupée).</summary>
+    Task<bool> ToggleMuteAsync(string audioSource);
     Task AdjustVolumeDbAsync(string audioSource, double deltaDb);
     Task RecordAsync(RecordAction action);
     Task StreamAsync(bool start);

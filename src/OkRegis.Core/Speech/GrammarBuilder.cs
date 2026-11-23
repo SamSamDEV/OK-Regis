@@ -83,10 +83,21 @@ public static class GrammarBuilder
             if (vocab.CanSpeak(spoken, out var form)) result.Add(string.Join(' ', vocab.Resolve(form!)));
             else if (!unspeakable.Contains(spoken)) unspeakable.Add(spoken);
         }
-        foreach (var n in names) Try(n);
-        foreach (var (nick, real) in settings.Nicknames)
+        // Un mot seul du nom suffit aussi ("chatting" pour "Just Chatting") ; « micro » pour Mic/Aux.
+        void TryQuiet(string word)
+        {
+            if (vocab.CanSpeak(word, out var form)) result.Add(string.Join(' ', vocab.Resolve(form!)));
+        }
+        foreach (var n in names)
+        {
+            Try(n);
+            var tokens = Normalizer.Normalize(n).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var token in tokens.Where(t => t.Length >= 3 && !t.All(char.IsDigit))) TryQuiet(token);
+            if (tokens.Any(CommandParser.MicTokens.Contains)) TryQuiet("micro");
+        }
+        foreach (var (nick, real) in settings.Nicknames.ToList())
             if (names.Any(n => Normalizer.Normalize(n) == Normalizer.Normalize(real))) Try(nick);
-        return result;
+        return result.Distinct().ToList();
     }
 
     /// <summary>Le format attendu par Vosk : un tableau JSON de phrases.</summary>

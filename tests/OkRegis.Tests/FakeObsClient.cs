@@ -35,6 +35,7 @@ public class FakeObsClient : IObsClient
     public Task SetCurrentSceneAsync(string s) => Record($"scene {s}");
     public Task SetSourceVisibleAsync(string scene, string source, bool v) => Record($"visible {scene}/{source}={v}");
     public Task SetMutedAsync(string a, bool m) => Record($"mute {a}={m}");
+    public Task<bool> ToggleMuteAsync(string a) { Calls.Add($"togglemute {a}"); return Task.FromResult(true); }
     public Task AdjustVolumeDbAsync(string a, double d) => Record(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"volume {a}{d:+0.0;-0.0}"));
     public Task RecordAsync(RecordAction a) => Record($"record {a}");
     public Task StreamAsync(bool start) => Record($"stream {start}");

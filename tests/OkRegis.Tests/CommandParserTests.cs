@@ -74,6 +74,33 @@ public class CommandParserTests
         Assert.Equal("AFK", Parse("régis affiche a f k", null, afk).Command!.Target);
     }
 
+    // « coupe le micro » doit marcher même si la source s'appelle "Mic/Aux" ; « mute » / « unmute » aussi.
+    [Fact]
+    public void Micro_est_un_alias_de_Mic_Aux()
+    {
+        var snap = new ObsSnapshot(new[] { "LoL" }, "LoL", Array.Empty<string>(), new[] { "Desktop Audio", "Mic/Aux", "Discord" });
+        Assert.Equal("Mic/Aux", Parse("régis coupe le micro", null, snap).Command!.Target);
+        Assert.Equal("Mic/Aux", Parse("régis remets le micro", null, snap).Command!.Target);
+    }
+
+    [Theory]
+    [InlineData("régis mute discord", CommandKind.Mute)]
+    [InlineData("régis unmute discord", CommandKind.Unmute)]
+    [InlineData("régis muet spotify", CommandKind.Mute)]
+    public void Mute_et_unmute_sont_compris(string entendu, CommandKind kind)
+    {
+        var r = Parse(entendu);
+        Assert.Equal(ParseStatus.Ok, r.Status);
+        Assert.Equal(kind, r.Command!.Kind);
+    }
+
+    [Fact]
+    public void Un_mot_dun_nom_suffit_pour_la_cible()
+    {
+        var snap = new ObsSnapshot(new[] { "Just Chatting", "LoL" }, "LoL", Array.Empty<string>(), Array.Empty<string>());
+        Assert.Equal("Just Chatting", Parse("régis mets chatting", null, snap).Command!.Target);
+    }
+
     [Fact]
     public void Nom_de_lassistant_avec_chiffre_peut_reveiller()
     {

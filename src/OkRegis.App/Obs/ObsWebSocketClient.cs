@@ -85,16 +85,25 @@ public class ObsWebSocketClient : IObsClient, IDisposable
         var scenes = list.Scenes.Select(s => s.Name).Reverse().ToList(); // OBS les renvoie en ordre inversé
         var current = list.CurrentProgramSceneName;
 
-        var sources = current is null ? new List<string>() : ListSources(current, false, Groups(), new HashSet<string>());
+        // Les sources de CHAQUE scène, comme dans OBS (groupes dépliés).
+        var groups = Groups();
+        var byScene = new Dictionary<string, IReadOnlyList<string>>();
+        foreach (var scene in scenes)
+        {
+            try { byScene[scene] = ListSources(scene, false, groups, new HashSet<string>()).Distinct().ToList(); }
+            catch (Exception) { byScene[scene] = new List<string>(); }
+        }
+        var sources = current is not null && byScene.TryGetValue(current, out var currentSources) ? currentSources : new List<string>();
 
         // Une source a de l'audio si OBS accepte de donner son état muet.
         var audio = new List<string>();
+        var muted = new Dictionary<string, bool>();
         foreach (var input in _obs.GetInputList())
         {
-            try { _obs.GetInputMute(input.InputName); audio.Add(input.InputName); }
+            try { muted[input.InputName] = _obs.GetInputMute(input.InputName); audio.Add(input.InputName); }
             catch (Exception) { /* pas de piste audio */ }
         }
-        return new ObsSnapshot(scenes, current, sources, audio);
+        return new ObsSnapshot(scenes, current, sources, audio, byScene, muted);
     });
 
     // Les éléments d'une scène ou d'un groupe : (nom de la source, numéro de l'élément).
@@ -144,6 +153,13 @@ public class ObsWebSocketClient : IObsClient, IDisposable
     }
 
     public Task SetMutedAsync(string audioSource, bool muted) => Task.Run(() => _obs.SetInputMute(audioSource, muted));
+
+    public Task<bool> ToggleMuteAsync(string audioSource) => Task.Run(() =>
+    {
+        var now = !_obs.GetInputMute(audioSource);
+        _obs.SetInputMute(audioSource, now);
+        return now;
+    });
 
     public Task AdjustVolumeDbAsync(string audioSource, double deltaDb) => Task.Run(() =>
     {

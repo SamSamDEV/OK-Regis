@@ -48,10 +48,11 @@ public class OrchestratorTests
     }
 
     [Fact]
-    public void Changement_dans_obs_reconstruit_la_grammaire()
+    public async Task Changement_dans_obs_reconstruit_la_grammaire()
     {
         _watcher.RaiseStarted();
         _obs.RaiseSnapshotChanged();
+        await WaitUntil(() => _mic.Grammars.Count >= 2);
         Assert.Equal(2, _mic.Grammars.Count);
     }
 
@@ -169,6 +170,37 @@ public class OrchestratorTests
         _watcher.RaiseStarted();
         Assert.NotEqual(RegisState.Listening, _o.State);
         Assert.Contains(_o.History, h => !h.Success && h.Result.Contains("Micro"));
+    }
+
+    [Fact]
+    public async Task Actualiser_relit_les_scenes_et_sources()
+    {
+        _watcher.RaiseStarted();
+        _obs.Snapshot = _obs.Snapshot with { Scenes = new[] { "LoL", "Nouvelle" } };
+        _o.Refresh();
+        await WaitUntil(() => _mic.Grammars.Count >= 2);
+        Assert.Contains("Nouvelle", _o.Snapshot!.Scenes);
+        Assert.Equal(2, _mic.Grammars.Count);
+    }
+
+    [Fact]
+    public async Task Le_bouton_muet_passe_par_obs()
+    {
+        _watcher.RaiseStarted();
+        var nowMuted = await _o.ToggleMuteAsync("Spotify");
+        Assert.True(nowMuted);
+        Assert.Contains("togglemute Spotify", _obs.Calls);
+    }
+
+    [Fact]
+    public async Task La_grammaire_peut_etre_reconstruite_en_arriere_plan()
+    {
+        _watcher.RaiseStarted();
+        var before = _mic.Grammars.Count;
+        _settings.AssistantName = "bob";
+        _o.RebuildGrammarInBackground();
+        await WaitUntil(() => _mic.Grammars.Count > before);
+        Assert.Contains("bob", _mic.Grammars.Last());
     }
 
     [Fact]

@@ -89,7 +89,12 @@ public class TrayApp : ApplicationContext
     {
         using var form = new SettingsForm(_settings, _secrets, _vocab, firstRun: false);
         if (form.ShowDialog(_main.Visible ? _main : null) != DialogResult.OK) return;
-        SaveAndApply();
+        _store.Save(_settings);
+        Autostart.Set(_settings.StartWithWindows);
+        var wasDark = Theme.Dark;
+        Theme.Set(_settings.Theme);
+        if (Theme.Dark != wasDark) _main.ReapplyTheme(); // on ne refait tout l'affichage que si le thème a vraiment changé
+        _orchestrator.RebuildGrammarInBackground();
     }
 
     // Bouton ☀/☾ : bascule clair ↔ sombre (et mémorise le choix).
@@ -101,13 +106,12 @@ public class TrayApp : ApplicationContext
         _main.ReapplyTheme();
     }
 
+    // Surnom ajouté/retiré : l'affichage suit tout de suite, la grammaire (lourde) se refait en arrière-plan.
     private void SaveAndApply()
     {
         _store.Save(_settings);
-        Autostart.Set(_settings.StartWithWindows);
-        Theme.Set(_settings.Theme);
-        _main.ReapplyTheme();
-        _orchestrator.RebuildGrammar(); // changer le nom ou un surnom ne demande que de refaire la grammaire
+        _main.RefreshView();
+        _orchestrator.RebuildGrammarInBackground();
     }
 
     private void Quit()

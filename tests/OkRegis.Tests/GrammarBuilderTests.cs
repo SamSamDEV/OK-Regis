@@ -91,6 +91,19 @@ public class GrammarBuilderTests
         Assert.Equal(r.Phrases, JsonSerializer.Deserialize<string[]>(GrammarBuilder.ToVoskJson(r)));
     }
 
+    // Sinon « coupe le micro » serait impossible à entendre pour une source nommée "Mic/Aux".
+    [Fact]
+    public void Micro_et_mute_sont_dans_la_grammaire_pour_Mic_Aux()
+    {
+        var vocab = new Vocabulary(new[] { "régis", "coupe", "mute", "le", "micro", "mic", "aux", "discord" });
+        var snap = new ObsSnapshot(new[] { "LoL" }, "LoL", Array.Empty<string>(), new[] { "Mic/Aux", "Discord" });
+        var r = GrammarBuilder.Build(new AppSettings(), snap, vocab);
+        Assert.Contains("régis coupe le micro", r.Phrases);
+        Assert.Contains("régis coupe mic aux", r.Phrases);
+        Assert.Contains("régis mute discord", r.Phrases);
+        Assert.Contains("régis coupe aux", r.Phrases);   // un seul mot du nom suffit
+    }
+
     [Fact]
     public void Snapshot_vide_donne_au_moins_les_commandes_fixes()
     {

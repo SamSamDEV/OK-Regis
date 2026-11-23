@@ -82,6 +82,40 @@ public class Orchestrator
         if (!connected && State == RegisState.Connecting) await ConnectLoopAsync();
     });
 
+    /// <summary>Relit les scènes et sources dans OBS (bouton « Actualiser »).</summary>
+    public void Refresh() => _ = RunSafe(RefreshSnapshotAsync);
+
+    /// <summary>Coupe / rétablit une source audio. Renvoie le nouvel état (vrai = coupée).</summary>
+    public Task<bool> ToggleMuteAsync(string audioSource) => _obs.ToggleMuteAsync(audioSource);
+
+    private int _rebuildPending, _rebuildRunning;
+
+    /// <summary>
+    /// Reconstruit la grammaire SANS bloquer l'interface (Vosk peut mettre un moment à la compiler).
+    /// Plusieurs demandes d'affilée sont regroupées en une seule.
+    /// </summary>
+    public void RebuildGrammarInBackground()
+    {
+        Interlocked.Exchange(ref _rebuildPending, 1);
+        if (Interlocked.CompareExchange(ref _rebuildRunning, 1, 0) != 0) return; // un travail tourne déjà : il reprendra
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                while (Interlocked.Exchange(ref _rebuildPending, 0) == 1)
+                {
+                    try { RebuildGrammar(); }
+                    catch (Exception) { Interlocked.Exchange(ref _rebuildPending, 1); Thread.Sleep(50); } // réglage modifié en même temps : on réessaie
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _rebuildRunning, 0);
+                if (Volatile.Read(ref _rebuildPending) == 1) RebuildGrammarInBackground();
+            }
+        });
+    }
+
     /// <summary>Reconstruit la liste de mots (ex. après un changement de nom ou de surnom).</summary>
     public void RebuildGrammar()
     {
@@ -170,8 +204,9 @@ public class Orchestrator
     private async Task RefreshSnapshotAsync()
     {
         if (!_obs.IsConnected) return;
-        Snapshot = await _obs.GetSnapshotAsync();
-        RebuildGrammar();
+        Snapshot = await _obs.GetSnapshotAsync().ConfigureAwait(false);
+        Changed?.Invoke();               // l'affichage se met à jour tout de suite
+        RebuildGrammarInBackground();    // la grammaire (lourde) se refait sans bloquer l'interface
     }
 
     private async Task OnPhraseHeardAsync(Heard heard)

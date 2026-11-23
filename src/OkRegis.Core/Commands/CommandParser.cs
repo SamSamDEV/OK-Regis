@@ -22,6 +22,9 @@ public class CommandParser
         ("masque", CommandKind.HideSource, TargetPool.Sources),
         ("enleve", CommandKind.HideSource, TargetPool.Sources),
         ("coupe", CommandKind.Mute, TargetPool.Audio),
+        ("mute", CommandKind.Mute, TargetPool.Audio),
+        ("muet", CommandKind.Mute, TargetPool.Audio),
+        ("unmute", CommandKind.Unmute, TargetPool.Audio),
         ("remets", CommandKind.Unmute, TargetPool.Audio),
         ("remet", CommandKind.Unmute, TargetPool.Audio),
         ("retablis", CommandKind.Unmute, TargetPool.Audio),
@@ -51,6 +54,9 @@ public class CommandParser
         Fixed.SelectMany(f => f.Subject == "l enregistrement"
             ? new[] { ($"{f.Verb} l enregistrement", f.Kind), ($"{f.Verb} enregistrement", f.Kind) }
             : new[] { ($"{f.Verb} {f.Subject}", f.Kind) });
+
+    /// <summary>Les mots d'un nom de source qui font penser à un micro ("Mic/Aux", "Micro Blue Yeti"...).</summary>
+    public static readonly HashSet<string> MicTokens = new() { "mic", "micro", "microphone", "aux" };
 
     private static readonly HashSet<string> Articles = new() { "le", "la", "les", "l", "un", "une", "du", "de", "d" };
 
@@ -138,6 +144,7 @@ public class CommandParser
         return normalized.FirstOrDefault(c => c.Norm == spoken).Real
             ?? normalized.FirstOrDefault(c => Normalizer.IsClose(c.Norm, spoken)).Real
             ?? normalized.FirstOrDefault(c => SpokenForms.For(c.Real).Contains(spoken)).Real // "c s deux" → CS2
+            ?? (spoken is "micro" or "microphone" or "mic" ? normalized.FirstOrDefault(c => c.Norm.Split(' ').Any(MicTokens.Contains)).Real : null) // « le micro » = Mic/Aux
             ?? normalized.FirstOrDefault(c => c.Norm.Split(' ').Contains(spoken)).Real;
     }
 }

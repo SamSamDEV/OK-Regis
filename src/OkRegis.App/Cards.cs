@@ -3,6 +3,10 @@ namespace OkRegis.App;
 /// <summary>Une carte : fond arrondi avec fine bordure, qui suit le thème.</summary>
 public class Card : Panel
 {
+    /// <summary>Vrai pendant qu'on déplace la carte : bordure d'accent.</summary>
+    public bool Highlight { get => _highlight; set { _highlight = value; Invalidate(); } }
+    private bool _highlight;
+
     public Card()
     {
         DoubleBuffered = true; ResizeRedraw = true;
@@ -15,7 +19,7 @@ public class Card : Panel
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var path = Theme.RoundedRect(new Rectangle(0, 0, Width - 1, Height - 1), 12);
         using var fill = new SolidBrush(Theme.Surface);
-        using var pen = new Pen(Theme.Border);
+        using var pen = new Pen(_highlight ? Theme.Accent : Theme.Border, _highlight ? 2f : 1f);
         e.Graphics.FillPath(fill, path);
         e.Graphics.DrawPath(pen, path);
     }
@@ -31,14 +35,14 @@ public class Chip : Control
     {
         Text = text; Font = Theme.BaseFont; Cursor = Cursors.Default; Margin = new Padding(0, 0, 6, 0);
         DoubleBuffered = true;
-        SetStyle(ControlStyles.SupportsTransparentBackColor, true);
-        BackColor = Color.Transparent;
+        BackColor = Theme.Surface; // fond opaque : bien plus rapide à redessiner qu'un fond transparent
         var textSize = TextRenderer.MeasureText(text, Font);
         Size = new Size(textSize.Width + 14 + CrossWidth, 28);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
+        e.Graphics.Clear(Theme.Surface);
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using (var path = Theme.RoundedRect(new Rectangle(0, 0, Width - 1, Height - 1), 13))
         using (var fill = new SolidBrush(Theme.ChipBack))

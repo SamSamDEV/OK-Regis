@@ -19,7 +19,7 @@ public class NavTabs : UserControl
         var button = new RadioButton
         {
             Text = title, Appearance = Appearance.Button, AutoSize = true, FlatStyle = FlatStyle.Flat,
-            Padding = new Padding(12, 4, 12, 4), Margin = new Padding(0, 0, 6, 0), Cursor = Cursors.Hand, Checked = first,
+            Padding = new Padding(12, 4, 12, 4), Margin = new Padding(0, 0, 6, 0), Cursor = Cursors.Hand, Checked = first, TabStop = false,
         };
         button.FlatAppearance.BorderSize = 0;
         page.Dock = DockStyle.Fill; page.Visible = first;

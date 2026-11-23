@@ -36,6 +36,12 @@ public class AppSettings
         [CommandKind.StreamStop] = false,
     };
 
+    /// <summary>L'ordre des scènes choisi dans l'appli (glisser-déposer). Ne change rien dans OBS.</summary>
+    public List<string> SceneOrder { get; set; } = new();
+
+    /// <summary>L'ordre des sources par scène (clé = nom de la scène, "(audio)" pour les sources audio).</summary>
+    public Dictionary<string, List<string>> SourceOrder { get; set; } = new();
+
     /// <summary>surnom → vrai nom de scène ou de source dans OBS.</summary>
     public Dictionary<string, string> Nicknames { get; set; } = new();
 

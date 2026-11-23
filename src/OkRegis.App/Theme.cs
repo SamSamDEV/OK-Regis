@@ -17,6 +17,8 @@ public static class Theme
     public static readonly Font TitleFont = new("Segoe UI Semibold", 15f);
     public static readonly Font CardTitleFont = new("Segoe UI Semibold", 11.5f);
     public static readonly Font SmallFont = new("Segoe UI", 8.5f);
+    public static readonly Font SymbolFont12 = new("Segoe UI Symbol", 12f);
+    public static readonly Font SymbolFont14 = new("Segoe UI Symbol", 14f);
 
     public static void Set(ThemeMode mode)
     {
@@ -80,25 +82,29 @@ public static class Theme
             case NumericUpDown n: n.BackColor = SurfaceAlt; n.ForeColor = Text; n.BorderStyle = BorderStyle.FixedSingle; break;
             case CheckedListBox cl: cl.BackColor = Surface; cl.ForeColor = Text; cl.BorderStyle = BorderStyle.None; break;
             case Label l:
-                l.BackColor = Color.Transparent;
+                l.BackColor = BackFor(l); // fond opaque : évite de redessiner le parent à chaque fois (plus fluide)
                 l.ForeColor = (l.Tag as string) switch { "muted" => Muted, "danger" => Danger, "accent" => Accent, _ => Text };
                 break;
             case RadioButton { Appearance: Appearance.Button }: break; // boutons d'onglets : stylés par NavTabs
-            case CheckBox or RadioButton: c.ForeColor = Text; c.BackColor = Color.Transparent; break;
+            case CheckBox or RadioButton: c.ForeColor = Text; c.BackColor = BackFor(c); break;
             case NavTabs nav: nav.BackColor = Bg; nav.ApplyTheme(); break;
             case Card card: card.BackColor = (card.Tag as string) == "flat" ? Surface : Bg; card.Invalidate(); break;
-            case Chip chip: chip.Invalidate(); break;
+            case Chip chip: chip.BackColor = Surface; chip.Invalidate(); break;
+            case RowPanel row: row.BackColor = row.Dragging ? SurfaceAlt : Surface; break;
             case CardList list:
                 list.BackColor = Bg;
                 if (list.IsHandleCreated) SetWindowTheme(list.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null); // barre de défilement sombre
                 else list.HandleCreated += (_, _) => SetWindowTheme(list.Handle, Dark ? "DarkMode_Explorer" : "Explorer", null);
                 break;
             case Panel or TableLayoutPanel or FlowLayoutPanel or UserControl:
-                c.BackColor = (c.Tag as string) == "card" ? Surface : Bg;
+                c.BackColor = (c.Tag as string) is "card" or "rows" ? Surface : Bg;
                 break;
         }
         foreach (Control child in c.Controls) Apply(child);
     }
+
+    // Couleur de fond d'un contrôle posé sur un parent : une carte est peinte en Surface, sinon on prend la couleur du parent.
+    private static Color BackFor(Control c) => c.Parent is Card ? Surface : c.Parent?.BackColor ?? Bg;
 
     // Coins arrondis pour les boutons.
     private static void Round(object? sender, EventArgs e)
