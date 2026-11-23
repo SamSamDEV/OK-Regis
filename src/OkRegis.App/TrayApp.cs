@@ -33,7 +33,7 @@ public class TrayApp : ApplicationContext
         _settings = settings; _store = store; _secrets = secrets; _vocab = vocab;
         _mic = new VoskMicListener(modelHost);
         _orchestrator = new Orchestrator(settings, _obs, _mic, new WindowsResponder(settings), _watcher, vocab, secrets);
-        _main = new MainForm(_orchestrator, _meter, AddNickname);
+        _main = new MainForm(_orchestrator, settings, vocab, _meter, SaveAndApply);
 
         _main.PauseButton.Click += (_, _) => TogglePause();
         _main.SettingsButton.Click += (_, _) => OpenSettings();
@@ -45,7 +45,7 @@ public class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quitter", null, (_, _) => Quit());
 
-        _icon.Icon = SystemIcons.Information;
+        _icon.Icon = TrayIcons.For(RegisState.Idle);
         _icon.ContextMenuStrip = menu;
         _icon.Visible = true;
         _icon.DoubleClick += (_, _) => ShowMain();
@@ -59,6 +59,7 @@ public class TrayApp : ApplicationContext
 
     private void OnChanged()
     {
+        _icon.Icon = TrayIcons.For(_orchestrator.State);
         _pauseItem.Text = _orchestrator.State == RegisState.Paused ? "Reprendre l'écoute" : "Mettre l'écoute en pause";
         _main.RefreshView();
         UpdateTooltip();
@@ -88,16 +89,12 @@ public class TrayApp : ApplicationContext
         SaveAndApply();
     }
 
-    private void AddNickname(string nick, string realName)
-    {
-        _settings.Nicknames[nick] = realName;
-        SaveAndApply();
-    }
-
     private void SaveAndApply()
     {
         _store.Save(_settings);
         Autostart.Set(_settings.StartWithWindows);
+        Theme.Set(_settings.Theme);
+        _main.ReapplyTheme();
         _orchestrator.RebuildGrammar(); // changer le nom ou un surnom ne demande que de refaire la grammaire
     }
 

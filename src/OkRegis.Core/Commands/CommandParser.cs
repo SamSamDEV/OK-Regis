@@ -6,26 +6,27 @@ namespace OkRegis.Core.Commands;
 /// <summary>Transforme une phrase entendue ("ok régis mets lol") en Command.</summary>
 public class CommandParser
 {
-    private enum Pool { Scenes, Sources, Audio, None }
+    /// <summary>Où chercher la cible d'un verbe : scènes, sources de la scène affichée, ou sources audio.</summary>
+    public enum TargetPool { Scenes, Sources, Audio }
 
     // phrase (normalisée) → type de commande + où chercher la cible
-    private static readonly (string Verb, CommandKind Kind, Pool Pool)[] Verbs =
+    private static readonly (string Verb, CommandKind Kind, TargetPool Pool)[] Verbs =
     {
-        ("passe sur", CommandKind.SwitchScene, Pool.Scenes),
-        ("mets", CommandKind.SwitchScene, Pool.Scenes),
-        ("met", CommandKind.SwitchScene, Pool.Scenes),
-        ("scene", CommandKind.SwitchScene, Pool.Scenes),
-        ("affiche", CommandKind.ShowSource, Pool.Sources),
-        ("montre", CommandKind.ShowSource, Pool.Sources),
-        ("cache", CommandKind.HideSource, Pool.Sources),
-        ("masque", CommandKind.HideSource, Pool.Sources),
-        ("enleve", CommandKind.HideSource, Pool.Sources),
-        ("coupe", CommandKind.Mute, Pool.Audio),
-        ("remets", CommandKind.Unmute, Pool.Audio),
-        ("remet", CommandKind.Unmute, Pool.Audio),
-        ("retablis", CommandKind.Unmute, Pool.Audio),
-        ("monte", CommandKind.VolumeUp, Pool.Audio),
-        ("baisse", CommandKind.VolumeDown, Pool.Audio),
+        ("passe sur", CommandKind.SwitchScene, TargetPool.Scenes),
+        ("mets", CommandKind.SwitchScene, TargetPool.Scenes),
+        ("met", CommandKind.SwitchScene, TargetPool.Scenes),
+        ("scene", CommandKind.SwitchScene, TargetPool.Scenes),
+        ("affiche", CommandKind.ShowSource, TargetPool.Sources),
+        ("montre", CommandKind.ShowSource, TargetPool.Sources),
+        ("cache", CommandKind.HideSource, TargetPool.Sources),
+        ("masque", CommandKind.HideSource, TargetPool.Sources),
+        ("enleve", CommandKind.HideSource, TargetPool.Sources),
+        ("coupe", CommandKind.Mute, TargetPool.Audio),
+        ("remets", CommandKind.Unmute, TargetPool.Audio),
+        ("remet", CommandKind.Unmute, TargetPool.Audio),
+        ("retablis", CommandKind.Unmute, TargetPool.Audio),
+        ("monte", CommandKind.VolumeUp, TargetPool.Audio),
+        ("baisse", CommandKind.VolumeDown, TargetPool.Audio),
     };
 
     // verbes d'enregistrement / de stream : la "cible" est un mot fixe
@@ -41,6 +42,15 @@ public class CommandParser
         ("arrete", "le stream", CommandKind.StreamStop),
         ("stop", "le stream", CommandKind.StreamStop),
     };
+
+    /// <summary>Les verbes qui attendent une cible (pour construire la grammaire vocale).</summary>
+    public static IReadOnlyList<(string Verb, CommandKind Kind, TargetPool Pool)> TargetVerbs => Verbs;
+
+    /// <summary>Les phrases complètes enregistrement / stream (sans le nom de l'assistant).</summary>
+    public static IEnumerable<(string Phrase, CommandKind Kind)> FixedPhrases =>
+        Fixed.SelectMany(f => f.Subject == "l enregistrement"
+            ? new[] { ($"{f.Verb} l enregistrement", f.Kind), ($"{f.Verb} enregistrement", f.Kind) }
+            : new[] { ($"{f.Verb} {f.Subject}", f.Kind) });
 
     private static readonly HashSet<string> Articles = new() { "le", "la", "les", "l", "un", "une", "du", "de", "d" };
 
@@ -83,8 +93,8 @@ public class CommandParser
             var targetWords = rest.Skip(verbWords.Length).SkipWhile(Articles.Contains).ToList();
             var candidates = pool switch
             {
-                Pool.Scenes => snapshot.Scenes,
-                Pool.Sources => snapshot.SourcesInCurrentScene,
+                TargetPool.Scenes => snapshot.Scenes,
+                TargetPool.Sources => snapshot.SourcesInCurrentScene,
                 _ => snapshot.AudioSources,
             };
             var target = FindTarget(string.Join(' ', targetWords), candidates);

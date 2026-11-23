@@ -17,6 +17,7 @@ internal static class Program
         var store = new SettingsStore(SettingsStore.DefaultPath);
         var settings = store.Load();
         var secrets = new DpapiSecretProtector();
+        Theme.Set(settings.Theme);
 
         var modelPath = ModelManager.Find() ?? DownloadModel();
         if (modelPath is null) return;

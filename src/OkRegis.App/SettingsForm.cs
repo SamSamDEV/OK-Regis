@@ -17,6 +17,7 @@ public class SettingsForm : Form
         "Monter le volume", "Baisser le volume", "Lancer l'enregistrement", "Arrêter l'enregistrement",
         "Mettre l'enregistrement en pause", "Lancer le stream (déconseillé)", "Arrêter le stream",
     };
+    private static readonly string[] ThemeLabels = { "Automatique (comme Windows)", "Clair", "Sombre (nuit)" };
     private static readonly string[] ModeLabels = { "Voix Windows", "Mes propres fichiers son", "Juste un bip", "Silence" };
 
     private readonly AppSettings _s;
@@ -24,10 +25,11 @@ public class SettingsForm : Form
     private readonly Vocabulary _vocab;
 
     private readonly TextBox _name = new();
-    private readonly Label _nameWarning = new() { ForeColor = Color.Firebrick, AutoSize = true };
+    private readonly Label _nameWarning = new() { Tag = "danger", AutoSize = true };
     private readonly ComboBox _mic = new() { DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly ComboBox _output = new() { DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly ComboBox _mode = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly ComboBox _theme = new() { DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _host = new();
     private readonly NumericUpDown _port = new() { Minimum = 1, Maximum = 65535 };
     private readonly TextBox _password = new() { UseSystemPasswordChar = true };
@@ -45,16 +47,16 @@ public class SettingsForm : Form
         _s = settings; _secrets = secrets; _vocab = vocab;
         Text = firstRun ? "OK Régis — première configuration" : "OK Régis — réglages";
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(560, 600);
+        ClientSize = new Size(620, 680);
         FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
 
-        var tabs = new TabControl { Dock = DockStyle.Fill };
-        tabs.TabPages.Add(BuildGeneralTab(firstRun));
-        tabs.TabPages.Add(WrapTab("Commandes", "Coche les commandes que Régis a le droit d'exécuter.", _commands));
-        tabs.TabPages.Add(WrapTab("Surnoms", "Une ligne par surnom :  surnom = vrai nom dans OBS", _nicknames));
-        tabs.TabPages.Add(BuildResponsesTab());
+        var tabs = new NavTabs();
+        tabs.Add("Général", BuildGeneralTab(firstRun));
+        tabs.Add("Commandes", WrapTab("Coche les commandes que Régis a le droit d'exécuter.", _commands));
+        tabs.Add("Surnoms", WrapTab("Une ligne par surnom :  surnom = vrai nom dans OBS  (plus simple : double-clic sur une scène dans la fenêtre principale)", _nicknames));
+        tabs.Add("Réponses", BuildResponsesTab());
 
-        var ok = new Button { Text = "Enregistrer", DialogResult = DialogResult.OK, Width = 100 };
+        var ok = new Button { Text = "Enregistrer", Tag = "primary", DialogResult = DialogResult.OK, Width = 110 };
         var cancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Width = 80 };
         ok.Click += (_, _) => Apply();
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, Height = 40, Padding = new Padding(6) };
@@ -63,11 +65,12 @@ public class SettingsForm : Form
         AcceptButton = ok; CancelButton = cancel;
 
         Load();
+        Theme.Apply(this);
     }
 
-    private TabPage BuildGeneralTab(bool firstRun)
+    private Control BuildGeneralTab(bool firstRun)
     {
-        var page = new TabPage("Général");
+        var page = new Panel();
         var table = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(8), AutoScroll = true };
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -85,6 +88,7 @@ public class SettingsForm : Form
 
         AddRow(table, "Nom de l'assistant", _name);
         table.Controls.Add(new Label()); table.Controls.Add(_nameWarning);
+        AddRow(table, "Apparence", _theme);
         AddRow(table, "Micro", _mic);
         AddRow(table, "Réponses de Régis", _mode);
         AddRow(table, "Sortie audio des réponses", _output);
@@ -103,9 +107,9 @@ public class SettingsForm : Form
         return page;
     }
 
-    private TabPage BuildResponsesTab()
+    private Control BuildResponsesTab()
     {
-        var page = new TabPage("Réponses");
+        var page = new Panel();
         var split = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
         split.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         split.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
@@ -119,9 +123,9 @@ public class SettingsForm : Form
         return page;
     }
 
-    private static TabPage WrapTab(string title, string help, Control content)
+    private static Control WrapTab(string help, Control content)
     {
-        var page = new TabPage(title);
+        var page = new Panel();
         var panel = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -147,6 +151,7 @@ public class SettingsForm : Form
         _output.Items.Add("(sortie par défaut)"); _output.Items.AddRange(WindowsResponder.ListDevices().ToArray());
         _output.SelectedIndex = Math.Max(0, _output.FindString(_s.OutputDeviceName ?? ""));
         _mode.Items.AddRange(ModeLabels); _mode.SelectedIndex = (int)_s.VoiceMode;
+        _theme.Items.AddRange(ThemeLabels); _theme.SelectedIndex = (int)_s.Theme;
         _host.Text = _s.ObsHost; _port.Value = _s.ObsPort;
         _volume.Value = (decimal)_s.VolumeStepDb; _confidence.Value = (decimal)_s.MinConfidence;
         _autostart.Checked = _s.FirstRunDone ? Autostart.IsEnabled() : _s.StartWithWindows; // au premier lancement : la valeur par défaut (cochée)
@@ -171,17 +176,17 @@ public class SettingsForm : Form
 
     private async Task TestConnectionAsync()
     {
-        _testResult.ForeColor = SystemColors.ControlText; _testResult.Text = "Connexion…";
+        _testResult.ForeColor = Theme.Muted; _testResult.Text = "Connexion…";
         using var client = new ObsWebSocketClient();
         try
         {
             await client.ConnectAsync(_host.Text.Trim(), (int)_port.Value, PasswordToUse());
             var snap = await client.GetSnapshotAsync();
-            _testResult.ForeColor = Color.SeaGreen; _testResult.Text = $"✔ Connecté ({snap.Scenes.Count} scènes)";
+            _testResult.ForeColor = Theme.Success; _testResult.Text = $"✔ Connecté ({snap.Scenes.Count} scènes)";
         }
         catch (Exception ex)
         {
-            _testResult.ForeColor = Color.Firebrick; _testResult.Text = "✘ " + ex.Message;
+            _testResult.ForeColor = Theme.Danger; _testResult.Text = "✘ " + ex.Message;
         }
     }
 
@@ -196,6 +201,7 @@ public class SettingsForm : Form
         _s.MicDeviceName = _mic.SelectedIndex > 0 ? (string)_mic.SelectedItem! : null;
         _s.OutputDeviceName = _output.SelectedIndex > 0 ? (string)_output.SelectedItem! : null;
         _s.VoiceMode = (ResponseMode)_mode.SelectedIndex;
+        _s.Theme = (ThemeMode)_theme.SelectedIndex;
         _s.ObsHost = _host.Text.Trim().Length > 0 ? _host.Text.Trim() : "localhost";
         _s.ObsPort = (int)_port.Value;
         if (_password.Text.Length > 0) _s.ObsPasswordEncrypted = _secrets.Protect(_password.Text);

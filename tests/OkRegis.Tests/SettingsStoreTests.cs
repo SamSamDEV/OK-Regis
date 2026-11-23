@@ -42,6 +42,15 @@ public class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Le_theme_par_defaut_suit_windows_et_se_sauvegarde()
+    {
+        var store = new SettingsStore(FilePath);
+        Assert.Equal(ThemeMode.System, store.Load().Theme);
+        store.Save(new AppSettings { Theme = ThemeMode.Dark });
+        Assert.Equal(ThemeMode.Dark, store.Load().Theme);
+    }
+
+    [Fact]
     public void Fichier_absent_donne_les_valeurs_par_defaut()
         => Assert.False(new SettingsStore(FilePath).Load().FirstRunDone);
 }

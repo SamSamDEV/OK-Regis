@@ -10,6 +10,9 @@ public enum CommandKind
 /// <summary>Comment Régis répond : voix Windows, fichiers perso, simple bip ou silence.</summary>
 public enum ResponseMode { WindowsVoice, CustomFiles, Beep, Silent }
 
+/// <summary>Apparence : suivre Windows, clair, ou sombre (thème « nuit »).</summary>
+public enum ThemeMode { System, Light, Dark }
+
 /// <summary>Tous les réglages, enregistrés dans %AppData%\OK-Regis\settings.json.</summary>
 public class AppSettings
 {
@@ -24,6 +27,7 @@ public class AppSettings
     public bool StartWithWindows { get; set; } = true;
     public bool FirstRunDone { get; set; } = false;
     public ResponseMode VoiceMode { get; set; } = ResponseMode.WindowsVoice;
+    public ThemeMode Theme { get; set; } = ThemeMode.System;
 
     /// <summary>Le stream est désactivé par défaut (demande de l'utilisateur).</summary>
     public Dictionary<CommandKind, bool> EnabledCommands { get; set; } = new()
