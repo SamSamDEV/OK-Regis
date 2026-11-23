@@ -23,7 +23,8 @@ public class Orchestrator
     private readonly ISecretProtector _secrets;
     private readonly List<HistoryEntry> _history = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private bool _obsRunning;
+    private readonly object _stateLock = new();
+    private volatile bool _obsRunning;
 
     public RegisState State { get; private set; } = RegisState.Idle;
     public ObsSnapshot? Snapshot { get; private set; }
@@ -44,8 +45,9 @@ public class Orchestrator
 
     public void Start()
     {
-        _watcher.ObsStarted += () => _ = RunSafe(OnObsStartedAsync);
-        _watcher.ObsStopped += () => _ = RunSafe(OnObsStoppedAsync);
+        // _obsRunning change tout de suite (avant d'attendre son tour) : une boucle de reconnexion en cours le voit et s'arrête.
+        _watcher.ObsStarted += () => { _obsRunning = true; _ = RunSafe(OnObsStartedAsync); };
+        _watcher.ObsStopped += () => { _obsRunning = false; _ = RunSafe(OnObsStoppedAsync); };
         _obs.Disconnected += () => _ = RunSafe(OnObsDisconnectedAsync);
         _obs.SnapshotChanged += () => _ = RunSafe(RefreshSnapshotAsync);
         _mic.PhraseHeard += heard => _ = RunSafe(() => OnPhraseHeardAsync(heard));
@@ -57,16 +59,26 @@ public class Orchestrator
 
     public void Pause()
     {
-        _mic.Stop();
-        SetState(RegisState.Paused);
+        lock (_stateLock)
+        {
+            State = RegisState.Paused; // d'abord l'état : une connexion en cours ne rouvrira pas le micro
+            _mic.Stop();
+        }
+        Changed?.Invoke();
     }
 
     public void Resume() => _ = RunSafe(async () =>
     {
-        if (State != RegisState.Paused) return;
-        if (!_obsRunning) { SetState(RegisState.Idle); return; }
-        if (_obs.IsConnected) { _mic.Start(_settings.MicDeviceName); SetState(RegisState.Listening); }
-        else await ConnectLoopAsync();
+        bool connected;
+        lock (_stateLock)
+        {
+            if (State != RegisState.Paused) return;
+            if (!_obsRunning) { State = RegisState.Idle; connected = false; }
+            else if (_obs.IsConnected) { StartListeningLocked(); connected = true; }
+            else { State = RegisState.Connecting; connected = false; }
+        }
+        Changed?.Invoke();
+        if (!connected && State == RegisState.Connecting) await ConnectLoopAsync();
     });
 
     /// <summary>Reconstruit la liste de mots (ex. après un changement de nom ou de surnom).</summary>
@@ -82,32 +94,29 @@ public class Orchestrator
 
     private async Task OnObsStartedAsync()
     {
-        _obsRunning = true;
         if (State == RegisState.Paused) return;
         await ConnectLoopAsync();
     }
 
     private Task OnObsStoppedAsync()
     {
-        _obsRunning = false;
         _mic.Stop();
         _ = _obs.DisconnectAsync();
-        if (State != RegisState.Paused) SetState(RegisState.Idle);
+        SetStateUnlessPaused(RegisState.Idle);
         return Task.CompletedTask;
     }
 
     private async Task OnObsDisconnectedAsync()
     {
         _mic.Stop();
-        if (State == RegisState.Paused) return;
-        SetState(RegisState.Idle);
+        if (!SetStateUnlessPaused(RegisState.Idle)) return;
         if (_obsRunning) await ConnectLoopAsync(); // OBS tourne encore : on se reconnecte
     }
 
     // Réessaie de se connecter tant qu'OBS tourne (le serveur WebSocket peut être lent à démarrer).
     private async Task ConnectLoopAsync()
     {
-        SetState(RegisState.Connecting);
+        if (!SetStateUnlessPaused(RegisState.Connecting)) return;
         while (_obsRunning && State == RegisState.Connecting)
         {
             try
@@ -116,8 +125,12 @@ public class Orchestrator
                 await _obs.ConnectAsync(_settings.ObsHost, _settings.ObsPort, password);
                 Snapshot = await _obs.GetSnapshotAsync();
                 RebuildGrammar();
-                _mic.Start(_settings.MicDeviceName);
-                SetState(RegisState.Listening);
+                lock (_stateLock)
+                {
+                    if (State != RegisState.Connecting) return; // pause (ou OBS fermé) pendant la connexion : micro fermé
+                    StartListeningLocked();
+                }
+                Changed?.Invoke();
                 return;
             }
             catch (Exception)
@@ -125,7 +138,26 @@ public class Orchestrator
                 await Task.Delay(RetryDelay);
             }
         }
-        if (State == RegisState.Connecting) SetState(RegisState.Idle);
+        if (_obsRunning == false) SetStateUnlessPaused(RegisState.Idle);
+    }
+
+    // Ouvre le micro et passe en "À l'écoute" (à appeler avec _stateLock pris).
+    private void StartListeningLocked()
+    {
+        _mic.Start(_settings.MicDeviceName);
+        State = RegisState.Listening;
+    }
+
+    // Change l'état sauf si l'utilisateur a mis Régis en pause. Renvoie false si la pause a gagné.
+    private bool SetStateUnlessPaused(RegisState state)
+    {
+        lock (_stateLock)
+        {
+            if (State == RegisState.Paused) return false;
+            State = state;
+        }
+        Changed?.Invoke();
+        return true;
     }
 
     private async Task RefreshSnapshotAsync()

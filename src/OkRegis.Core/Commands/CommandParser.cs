@@ -57,13 +57,11 @@ public class CommandParser
     {
         var words = Normalizer.Normalize(heardText).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
 
-        // 1. mot d'appel : [ok|hey] <nom>
+        // 1. mot d'appel : [ok|hey] <nom>  (le nom peut aussi être dit en formes parlées : "R2" → "r deux")
         var start = words.Count > 0 && words[0] is "ok" or "hey" ? 1 : 0;
-        var nameWords = Normalizer.Normalize(_settings.AssistantName).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (nameWords.Length == 0 || words.Count < start + nameWords.Length
-            || !Normalizer.IsClose(string.Join(' ', words.Skip(start).Take(nameWords.Length)), string.Join(' ', nameWords)))
-            return new ParseResult(ParseStatus.NoWakeWord, null);
-        var rest = words.Skip(start + nameWords.Length).ToList();
+        var wakeLength = MatchWakeWord(words, start);
+        if (wakeLength == 0) return new ParseResult(ParseStatus.NoWakeWord, null);
+        var rest = words.Skip(start + wakeLength).ToList();
         var restText = string.Join(' ', rest);
 
         // 2. enregistrement / stream (phrase fixe)
@@ -97,13 +95,30 @@ public class CommandParser
         return new ParseResult(ParseStatus.UnknownVerb, null);
     }
 
+    // Renvoie le nombre de mots du nom de l'assistant au début de la phrase (0 = pas trouvé).
+    private int MatchWakeWord(List<string> words, int start)
+    {
+        var forms = SpokenForms.For(_settings.AssistantName)
+            .Select(f => f.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Where(f => f.Length > 0).ToList();
+        // D'abord une correspondance exacte (la plus longue), ensuite une correspondance avec petite faute.
+        foreach (var exact in new[] { true, false })
+            foreach (var f in forms.OrderByDescending(f => f.Length))
+            {
+                if (words.Count < start + f.Length) continue;
+                var heard = string.Join(' ', words.Skip(start).Take(f.Length));
+                var form = string.Join(' ', f);
+                if (exact ? heard == form : Normalizer.IsClose(heard, form)) return f.Length;
+            }
+        return 0;
+    }
+
     // Cherche la cible : surnom, nom exact, nom proche, puis mot contenu ("micro" dans "Micro/Aux").
     private string? FindTarget(string spoken, IReadOnlyList<string> candidates)
     {
         if (spoken.Length == 0) return null;
 
         foreach (var (nick, real) in _settings.Nicknames)
-            if (Normalizer.Normalize(nick) == spoken)
+            if (SpokenForms.For(nick).Contains(spoken))
             {
                 var hit = candidates.FirstOrDefault(c => Normalizer.Normalize(c) == Normalizer.Normalize(real));
                 if (hit is not null) return hit;
@@ -112,6 +127,7 @@ public class CommandParser
         var normalized = candidates.Select(c => (Real: c, Norm: Normalizer.Normalize(c))).Where(c => c.Norm.Length > 0).ToList();
         return normalized.FirstOrDefault(c => c.Norm == spoken).Real
             ?? normalized.FirstOrDefault(c => Normalizer.IsClose(c.Norm, spoken)).Real
+            ?? normalized.FirstOrDefault(c => SpokenForms.For(c.Real).Contains(spoken)).Real // "c s deux" → CS2
             ?? normalized.FirstOrDefault(c => c.Norm.Split(' ').Contains(spoken)).Real;
     }
 }

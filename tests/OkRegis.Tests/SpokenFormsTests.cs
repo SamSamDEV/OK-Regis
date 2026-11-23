@@ -29,6 +29,17 @@ public class SpokenFormsTests
         Assert.Contains("soixante et onze", SpokenForms.For("71"));
     }
 
+    // Revue n°3 : chiffres non ASCII (pleine largeur, arabes) ne doivent pas faire planter.
+    [Theory]
+    [InlineData("CS２")]
+    [InlineData("Scène ٣")]
+    public void Chiffres_non_ascii_ne_plantent_pas(string nom)
+    {
+        var formes = SpokenForms.For(nom);
+        Assert.NotEmpty(formes);
+        Assert.False(Vocab("c", "s", "deux", "trois").CanSpeak(nom, out _));
+    }
+
     [Fact]
     public void Les_accents_du_modele_sont_retrouves()
     {

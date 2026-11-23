@@ -36,17 +36,20 @@ public static class SpokenForms
         var parts = new List<string>();
         foreach (var token in norm.Split(' '))
         {
-            var runs = Regex.Matches(token, @"\d+|\D+").Select(m => m.Value).ToList();
-            var hasDigits = runs.Any(r => char.IsDigit(r[0]));
+            var runs = Regex.Matches(token, "[0-9]+|[^0-9]+").Select(m => m.Value).ToList();
+            var hasDigits = runs.Any(r => IsAsciiDigit(r[0]));
             foreach (var run in runs)
             {
-                if (char.IsDigit(run[0])) { parts.Add(NumberToWords(run)); continue; }
+                if (IsAsciiDigit(run[0])) { parts.Add(NumberToWords(run)); continue; }
                 var spell = (spellShortWords && run.Length <= 3) || (spellNextToDigits && hasDigits && runs.Count > 1);
                 parts.Add(spell ? string.Join(' ', run.Select(c => c.ToString())) : run);
             }
         }
         return string.Join(' ', parts);
     }
+
+    // Seuls les chiffres 0-9 sont convertis (les autres chiffres Unicode restent des caractères ordinaires).
+    private static bool IsAsciiDigit(char c) => c is >= '0' and <= '9';
 
     private static string NumberToWords(string digits)
     {

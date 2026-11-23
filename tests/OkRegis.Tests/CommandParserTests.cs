@@ -63,6 +63,24 @@ public class CommandParserTests
         Assert.Equal("AFK", Parse("régis affiche afk", null, snap).Command!.Target);
     }
 
+    // Revue n°2 : Vosk n'entend que "c s deux", pas "CS2".
+    [Fact]
+    public void Noms_dits_en_formes_parlees_sont_compris()
+    {
+        Assert.Equal("CS2", Parse("régis mets c s deux").Command!.Target);
+        var s21 = new ObsSnapshot(new[] { "Scene 21" }, "Scene 21", Array.Empty<string>(), Array.Empty<string>());
+        Assert.Equal("Scene 21", Parse("régis mets scene vingt et un", null, s21).Command!.Target);
+        var afk = new ObsSnapshot(new[] { "LoL" }, "LoL", new[] { "AFK" }, Array.Empty<string>());
+        Assert.Equal("AFK", Parse("régis affiche a f k", null, afk).Command!.Target);
+    }
+
+    [Fact]
+    public void Nom_de_lassistant_avec_chiffre_peut_reveiller()
+    {
+        var s = new AppSettings { AssistantName = "R2" };
+        Assert.Equal(ParseStatus.Ok, Parse("ok r deux mets lol", s).Status);
+    }
+
     [Fact]
     public void Snapshot_vide_donne_cible_inconnue()
     {

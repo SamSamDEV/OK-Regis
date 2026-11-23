@@ -126,6 +126,41 @@ public class OrchestratorTests
         Assert.Equal(RegisState.Listening, _o.State);
     }
 
+    private static async Task WaitUntil(Func<bool> condition)
+    {
+        for (var i = 0; i < 300 && !condition(); i++) await Task.Delay(10);
+    }
+
+    // Revue n°1 : fermer OBS pendant que Régis tente de se reconnecter doit arrêter la boucle.
+    [Fact]
+    public async Task Obs_ferme_pendant_la_reconnexion_arrete_les_essais()
+    {
+        _o.RetryDelay = TimeSpan.FromMilliseconds(10);
+        _watcher.RaiseStarted();
+        _obs.ConnectFailures = int.MaxValue;
+        _obs.RaiseDisconnected();          // la connexion tombe : Régis réessaie
+        _watcher.RaiseStopped();           // puis on constate qu'OBS est fermé
+        await WaitUntil(() => _o.State == RegisState.Idle);
+        Assert.Equal(RegisState.Idle, _o.State);
+        Assert.False(_mic.Running);
+    }
+
+    // Revue n°5 : une pause demandée pendant la connexion ne doit pas être écrasée.
+    [Fact]
+    public void Pause_pendant_la_connexion_garde_le_micro_ferme()
+    {
+        var gate = new TaskCompletionSource();
+        _obs.ConnectGate = gate.Task;
+        _watcher.RaiseStarted();           // la connexion attend la porte
+        _o.Pause();
+        gate.SetResult();
+        Assert.Equal(RegisState.Paused, _o.State);
+        Assert.False(_mic.Running);
+        _o.Resume();                        // et on peut reprendre ensuite
+        Assert.Equal(RegisState.Listening, _o.State);
+        Assert.True(_mic.Running);
+    }
+
     [Fact]
     public void Historique_limite_a_200()
     {
