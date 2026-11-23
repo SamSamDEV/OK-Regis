@@ -9,7 +9,7 @@ et ne se réveille que quand OBS s'ouvre.
 ## Installation
 
 1. Installe le **SDK .NET 10** pour compiler (`winget install Microsoft.DotNet.SDK.10`).
-2. Compile et publie : `.\publish.ps1` → le dossier `dist` contient `OkRegis.App.exe` (autonome).
+2. Compile et publie : `powershell -ExecutionPolicy Bypass -File .\publish.ps1` (Windows bloque souvent les scripts `.ps1` directs) → le dossier `dist` contient `OkRegis.App.exe` (autonome).
 3. Lance `OkRegis.App.exe`. **Au premier lancement**, le modèle vocal français léger (`vosk-model-small-fr`, ~40 Mo)
    est téléchargé dans `%AppData%\OK-Regis\models`. (Pour livrer le modèle avec l'appli, dézippe-le dans un dossier
    `models` à côté de l'exe : il sera trouvé en premier.)
