@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OkRegis.App/OkRegis.App.csproj" />
+    <Project Path="src/OkRegis.Core/OkRegis.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OkRegis.Tests/OkRegis.Tests.csproj" />
+  </Folder>
+</Solution>
