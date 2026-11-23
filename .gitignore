@@ -483,3 +483,8 @@ $RECYCLE.BIN/
 
 dist/
 .superpowers/
+
+# installateur : fichiers générés
+installer/staging/
+installer/models-cache/
+installer/Output/

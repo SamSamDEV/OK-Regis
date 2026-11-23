@@ -29,7 +29,7 @@ public static class TrayIcons
         using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias; g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-            using (var bg = new SolidBrush(Color.FromArgb(79, 70, 229))) g.FillEllipse(bg, 1, 1, 30, 30);
+            using (var bg = new SolidBrush(Color.FromArgb(37, 99, 235))) g.FillEllipse(bg, 1, 1, 30, 30);
             using (var font = new Font("Segoe UI", 16f, FontStyle.Bold, GraphicsUnit.Pixel))
             using (var white = new SolidBrush(Color.White))
             {

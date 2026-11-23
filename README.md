@@ -1,66 +1,103 @@
 # OK Régis
 
-Régisseur vocal pour **OBS** sous Windows. Tu parles à ton assistant comme à une vraie régie
-(« Ok Régis, mets LoL », « Régis, affiche AFK », « coupe Spotify »), il exécute l'ordre dans OBS et répond avec une voix.
+**English** · [Français](README.fr.md)
 
-100 % local (pas d'internet une fois installé), en français, léger : l'appli dort dans la zone de notification
-et ne se réveille que quand OBS s'ouvre.
+> A **voice assistant for OBS** on Windows. Talk to it like a real control room — *"Ok Régis, switch to Gameplay"*, *"Régis, hide the chat"*, *"mute Discord"* — and it does it in OBS and answers with a voice.
 
-## Installation
+- 🎙️ **100 % local**: speech recognition runs on your PC (Vosk). No cloud, no account, no subscription.
+- 🌍 **French, English and Spanish**: interface *and* voice commands.
+- 🪶 **Very light**: ~15–40 MB of working memory and ≈ 0.3 % of one CPU core while listening (details below).
+- 🔌 **Zero babysitting**: starts with Windows, sleeps in the tray, wakes up when OBS opens and goes back to sleep when OBS closes.
+- 🛡️ **Safe for your stream**: it is a separate app, **not an OBS plugin** — if it ever crashes, OBS keeps running.
 
-1. Installe le **SDK .NET 10** pour compiler (`winget install Microsoft.DotNet.SDK.10`).
-2. Compile et publie : `powershell -ExecutionPolicy Bypass -File .\publish.ps1` (Windows bloque souvent les scripts `.ps1` directs) → le dossier `dist` contient `OkRegis.App.exe` (autonome).
-3. Lance `OkRegis.App.exe`. **Au premier lancement**, le modèle vocal français léger (`vosk-model-small-fr`, ~40 Mo)
-   est téléchargé dans `%AppData%\OK-Regis\models`. (Pour livrer le modèle avec l'appli, dézippe-le dans un dossier
-   `models` à côté de l'exe : il sera trouvé en premier.)
-4. L'assistant de configuration te demande le nom de ton assistant, ton micro et la connexion à OBS.
+## Download
 
-## Activer le WebSocket dans OBS
+Get the latest installer from the [**Releases**](../../releases) page: `OKRegis-Setup-x.y.z.exe`.
+It installs for your user (no administrator rights) and **includes the voice models for all three languages** — nothing else to download.
 
-Dans OBS : **Outils → Paramètres du serveur WebSocket** → coche *Activer le serveur WebSocket*.
-Note le **port** (4455 par défaut) et le **mot de passe**, puis saisis-les dans OK Régis et clique sur *Tester la connexion à OBS*.
-(Il faut OBS 28 ou plus.)
+## First launch
 
-## Exemples de phrases
+1. Choose your language (French / English / Español).
+2. In OBS enable the WebSocket server: **Tools → WebSocket Server Settings → Enable WebSocket server** (OBS 28 or newer). Note the port (default `4455`) and the password.
+3. In OK Régis, pick a name for your assistant (default: *Régis*), your microphone, and enter the OBS port/password. Click **Test the OBS connection**.
+4. Done. OK Régis now lives in the system tray. Open OBS and it starts listening within ~3 seconds.
 
-Forme générale : `[ok|hey] <nom> <commande>`
+## Voice commands
 
-| Tu dis | Effet |
+General form: **`[ok|hey] <assistant name> <command>`** — for example *"ok Régis switch to Gameplay"*.
+
+| | English | Français | Español |
+|---|---|---|---|
+| Switch scene | *switch to / go to / scene* **Gameplay** | *mets / passe sur / scène* **Gameplay** | *cambia a / pasa a / escena* **Gameplay** |
+| Show a source (in the shown scene) | *show / display / enable* **webcam** | *affiche / montre* **webcam** | *muestra / enciende / activa* **webcam** |
+| Hide a source | *hide / remove / disable* **webcam** | *cache / masque / enlève* **webcam** | *oculta / esconde / quita / apaga* **webcam** |
+| Mute a sound | *mute* **discord** · *mute the mic* | *coupe / mute* **discord** · *coupe le micro* | *silencia / mute* **discord** · *silencia el micro* |
+| Unmute | *unmute* **discord** | *remets / unmute* **discord** | *reactiva / unmute* **discord** |
+| Volume ± 3 dB | *raise / lower* **spotify** | *monte / baisse* **spotify** | *sube / baja* **spotify** |
+| Recording | *start / stop / pause recording* | *lance / arrête / pause l'enregistrement* | *graba · para de grabar · pausa la grabadora* |
+| Stream *(off by default)* | *start / stop streaming* | *lance / arrête le stream* | *inicia / para el stream* |
+
+Notes:
+- **The verb decides what you mean.** *Switch to* only looks at **scenes**; *show/hide* only looks at the **sources of the scene currently shown**; *mute/volume* only look at **sounds**. A scene and an overlay can share a name without any confusion.
+- Names are matched loosely (case, accents and punctuation ignored, small typos tolerated), and a single word of a name is enough (*"chatting"* for *"Just Chatting"*).
+- If Régis is not sure, **it does nothing** and writes it in the history.
+- Every command type can be switched off in the settings. **Stream commands are off by default.**
+- While Régis speaks, the microphone is muted so it never triggers on its own voice.
+
+## The window
+
+Open it from the tray icon. Header: state, last phrase heard, **Pause**, **Refresh**, **Settings**, and a **☀/☾ button to switch between light and dark themes**.
+
+- **Scenes** — every scene like in OBS, with its sources underneath (click a scene to expand). Give any name a **nickname**: click **+ Nickname**, type a word, press Enter. Names the voice model cannot hear are flagged with ⚠ — a nickname fixes it. **Drag the ⠿ handle to reorder** scenes or sources (the order is kept by the app; OBS itself is not changed).
+- **Sounds** — your audio sources with a one-click **On / Muted** button and nicknames.
+- **Régis's replies** — for each action choose the phrase Régis says (`{scene}` / `{source}` are replaced by the name) and/or **your own sound file** (wav/mp3, played instead of the voice). ▶ lets you preview. Or pick *just a beep* or *silence*.
+- **History** — everything heard and what was done with it.
+
+## Settings
+
+Language · assistant name · appearance · microphone · reply output device (so you decide whether the voice reaches the stream) · OBS address/port/password · volume step · confidence threshold · which commands are enabled · *save CPU* mode · start with Windows.
+
+Changing the **language** restarts the app (a different voice model is loaded). Settings are stored in `%AppData%\OK-Regis\settings.json`; the OBS password is encrypted with Windows DPAPI.
+
+## Performance
+
+Measured on a real setup with OBS open and a large scene collection:
+
+| | Value |
 |---|---|
-| « Ok Régis, mets LoL » / « passe sur CS2 » | change de scène |
-| « Régis, affiche AFK » / « montre FaceReveal » | affiche une source de la scène affichée |
-| « Régis, cache AFK » / « masque chat » / « enlève FaceReveal » | masque la source |
-| « Régis, coupe Spotify » / « coupe le micro » | coupe le son |
-| « Régis, remets Discord » | rétablit le son |
-| « Régis, monte Spotify » / « baisse Discord » | volume ± 3 dB (réglable) |
-| « Régis, lance / arrête / pause l'enregistrement » | enregistrement |
-| « Régis, lance / arrête le stream » | stream (**désactivé par défaut**, à cocher dans les réglages) |
+| Working memory (Task Manager) | **~15 MB** idle, **~40 MB** after a few seconds of listening |
+| CPU while listening | **≈ 0.3 %** of one core |
+| CPU when OBS is closed | ≈ 0 % (the microphone and the voice model are released) |
 
-Chaque type de commande se coche ou se décoche dans les réglages. Si Régis ne comprend pas ou doute,
-il ne fait rien et le note dans l'historique.
+How: the speech engine only runs while you talk (a small voice-activity gate), the window does not exist in memory until you open it, unused memory is handed back to Windows after a few seconds of inactivity, and the recognition grammar only contains the valid sentences for your current scenes (which is also what makes it accurate).
+The voice model itself reserves ~390 MB of *committed* memory; Windows only keeps the parts it actually needs in RAM.
 
-## Noms que Régis ne peut pas entendre
+## Troubleshooting
 
-Vosk ne reconnaît que les mots de son vocabulaire. Les noms comme « Texte (GDI+) 2 » sont signalés avec un ⚠ dans la fenêtre
-principale (onglet *Scènes et sources*) : fais un **double-clic** pour leur donner un surnom (« jeu », « alerte »…).
-« CS2 » est automatiquement compris comme « c s deux ».
+- **Régis does not react / reacts rarely** — check the **History** tab. *"Not sure enough"* → raise your mic level or lower the *confidence threshold*. Nothing at all → untick **Save CPU** in the settings (very quiet microphones).
+- **⚠ "Régis can't hear this name"** — the voice model does not know that word (e.g. `Texte (GDI+) 2`). Add a nickname with a common word.
+- **Cannot connect to OBS** — OBS must be open with the WebSocket server enabled; check port and password.
+- **The assistant name shows a warning** — it is unknown to the voice model or too close to a command word. Try another spelling or name.
 
-## Vie de l'appli
+## Build from source
 
-- Démarre avec Windows (case décochable dans les réglages), cachée dans la zone de notification.
-- Quand `obs64.exe` apparaît (vérifié toutes les 3 s), Régis se connecte et ouvre le micro ; quand OBS se ferme, le micro est fermé et la mémoire du modèle libérée.
-- Menu de l'icône : ouvrir la fenêtre, mettre l'écoute en pause / reprendre, quitter.
-- Processeur et mémoire s'affichent en bas de la fenêtre (rafraîchis seulement quand elle est visible) et au survol de l'icône.
-- Pendant que Régis parle, le micro est coupé pour qu'il ne se déclenche pas sur sa propre voix.
+Requires the .NET 10 SDK on Windows.
 
-## Structure du code
+```powershell
+dotnet test tests/OkRegis.Tests                       # unit tests
+powershell -ExecutionPolicy Bypass -File publish.ps1  # self-contained build in .\dist
+```
 
-- `src/OkRegis.Core` : toute la logique sans matériel (compréhension des phrases, grammaire, exécution, chef d'orchestre).
-- `src/OkRegis.App` : l'appli Windows (OBS WebSocket, micro Vosk/NAudio, voix, icône, fenêtres).
-- `tests/OkRegis.Tests` : tests xUnit de la partie Core (`dotnet test`).
+The first run downloads the voice model of the chosen language (≈ 40 MB, from alphacephei.com) unless a `models` folder sits next to the executable. The installer script is in [`installer/`](installer/).
 
-## État de vérification
+```
+src/OkRegis.Core   all logic without hardware: parsing, grammar, languages, orchestration (unit tested)
+src/OkRegis.App    the Windows app: OBS WebSocket, microphone (NAudio + Vosk), voice, tray, windows
+tests/             xUnit tests
+```
 
-Les tests automatiques passent. Le client OBS, le micro, la voix et l'interface n'ont **pas** encore été vérifiés à la main
-avec un vrai OBS et un vrai micro : à contrôler avant de partager (voir la liste dans `docs/superpowers/plans/2026-11-23-ok-regis.md`,
-tâches 7 à 12). Les mesures de performance (< 120 Mo, CPU ≈ 0 % en veille) restent à relever.
+**Adding a language** = one `LanguagePack` (verbs, numbers, default replies, model name) in `Languages/LanguagePack.cs` plus a column in `Localization/Loc.cs`. The tests check that every UI text has a translation.
+
+## Credits & licenses
+
+OK Régis is released under the [MIT License](LICENSE). It uses [Vosk](https://alphacephei.com/vosk/) (Apache 2.0) and its small language models, [NAudio](https://github.com/naudio/NAudio) (MIT), [obs-websocket-dotnet](https://github.com/BarRaider/obs-websocket-dotnet) (MIT) and `System.Speech` for the voice.
