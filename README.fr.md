@@ -11,11 +11,23 @@
 - 🪶 **Très léger** : ~15 à 40 Mo de mémoire de travail et ≈ 0,3 % d'un cœur de processeur en écoute (détails plus bas).
 - 🔌 **Aucun lancement manuel** : démarre avec Windows, dort dans la zone de notification, se réveille à l'ouverture d'OBS et se rendort quand OBS se ferme.
 - 🛡️ **Sans risque pour ton live** : c'est une appli à part, **pas un plugin OBS** — si elle plante, OBS continue.
+- ✨ **Fenêtre fluide à 60 FPS**, thèmes clair et sombre, ordre par glisser-déposer, muet en un clic, surnoms pour tout ce qu'OBS nomme.
 
 ## Téléchargement
 
 Récupère le dernier installateur sur la page [**Releases**](../../releases) : `OKRegis-Setup-x.y.z.exe`.
 Il s'installe pour ton utilisateur (sans droits administrateur) et **contient les modèles vocaux des trois langues** — rien d'autre à télécharger.
+
+## Nouveautés
+
+| Version | À retenir |
+|---|---|
+| **1.0.3** | Correction : replier une scène ne dessine plus le texte des lignes hors de la carte ; les cartes du dessous suivent exactement le repli. |
+| **1.0.2** | **Fenêtre à 60 FPS** : listes dessinées sur une seule surface, défilement adouci, dépliage et glisser-déposer animés. Changement de thème 704 → 15 ms. |
+| **1.0.1** | **Boost du micro + indicateur de niveau en direct** pour les micros faibles (ne change que ce que Régis entend, jamais OBS). |
+| **1.0.0** | Première version : contrôle vocal d'OBS en **français, anglais et espagnol**, scènes/sources/sons lus dans OBS, surnoms, thèmes clair/sombre, réponses et sons personnalisés, appli qui suit OBS dans la zone de notification, installateur avec tous les modèles vocaux. |
+
+Notes complètes : [Releases](../../releases).
 
 ## Premier lancement
 

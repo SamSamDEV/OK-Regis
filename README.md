@@ -11,11 +11,23 @@
 - 🪶 **Very light**: ~15–40 MB of working memory and ≈ 0.3 % of one CPU core while listening (details below).
 - 🔌 **Zero babysitting**: starts with Windows, sleeps in the tray, wakes up when OBS opens and goes back to sleep when OBS closes.
 - 🛡️ **Safe for your stream**: it is a separate app, **not an OBS plugin** — if it ever crashes, OBS keeps running.
+- ✨ **Smooth 60 FPS window**, light and dark themes, drag-and-drop ordering, one-click mute, nicknames for anything OBS names.
 
 ## Download
 
 Get the latest installer from the [**Releases**](../../releases) page: `OKRegis-Setup-x.y.z.exe`.
 It installs for your user (no administrator rights) and **includes the voice models for all three languages** — nothing else to download.
+
+## What's new
+
+| Version | Highlights |
+|---|---|
+| **1.0.3** | Fix: folding a scene no longer draws row text outside the card; cards below follow the fold exactly. |
+| **1.0.2** | **60 FPS window**: lists drawn on a single surface, smooth scrolling, animated expand/collapse and drag & drop. Theme switch 704 → 15 ms. |
+| **1.0.1** | **Microphone boost + live level meter** for quiet microphones (affects only what Régis hears, never OBS). |
+| **1.0.0** | First release: voice control of OBS in **French, English and Spanish**, scenes/sources/sounds read from OBS, nicknames, light/dark themes, custom replies and sounds, tray app that follows OBS, installer with all voice models. |
+
+Full notes: [Releases](../../releases).
 
 ## First launch
 
