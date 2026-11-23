@@ -4,6 +4,14 @@
     <ProjectReference Include="..\OkRegis.Core\OkRegis.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="3.3.0" />
+    <PackageReference Include="obs-websocket-dotnet" Version="5.7.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="11.0.0" />
+    <PackageReference Include="System.Speech" Version="11.0.0" />
+    <PackageReference Include="Vosk" Version="0.3.38" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
